@@ -324,6 +324,10 @@ class BiliComments {
                     if ($stmt->rowCount() === 0) {
                         die($this->getErrorTemplate('安装失败', '数据库不存在。'));
                     }
+                    // Check username
+                    if (!preg_match('/^[a-zA-Z0-9_]{2,16}$/', $_POST['admin_user'])) {
+                        die($this->getErrorTemplate('安装失败', '用户名不符合规范 (2-16 位字母、数字或下划线)。'));
+                    }
                     // Create tables
                     $installSQL = file_get_contents(sprintf('%s/../data/install.sql', ROOT));
                     $installSQL = str_replace('{{db_pfix}}', $_POST['db_pfix'] ?: '', $installSQL);
@@ -388,6 +392,9 @@ if (!isset($_SESSION['user'])) {
     }
     $username = $_POST['username'];
     $password = $_POST['password'];
+    if (!preg_match('/^[a-zA-Z0-9_]{2,16}$/', $username)) {
+        $comments->basicAuth();
+    }
     $conn = $comments->getDatabase();
     $stmt = $conn->prepare(sprintf('SELECT `id`, `username`, `password`, `salt` FROM `%s` WHERE `username` = ?', $comments->getTableName('users')));
     $stmt->execute([$username]);
@@ -410,6 +417,9 @@ if (isset($_GET['action']) && is_string($_GET['action'])) {
         case 'updateConvar':
             if (!isset($_POST['key']) || !isset($_POST['value'])) {
                 die($comments->getErrorTemplate('错误', '请填写所有必要的信息。'));
+            }
+            if (!preg_match('/^[a-zA-Z0-9_]{1,32}$/', $_POST['key'])) {
+                die($comments->getErrorTemplate('错误', '键名不符合规范。'));
             }
             if ($_POST['key'] == 'cookie' && !$comments->validCookie($_POST['value'])) {
                 die($comments->getErrorTemplate('错误', 'Cookie 无效。'));
