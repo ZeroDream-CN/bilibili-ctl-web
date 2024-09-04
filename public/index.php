@@ -533,6 +533,14 @@ if ($last && time() - $last > $interval * 4) {
     <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/bootstrap/4.5.3/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.6.0/css/all.min.css">
     <style>
+        body {
+            background-color: #f1f1f1;
+        }
+
+        .card {
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1), 0 0 20px rgba(0, 0, 0, 0.1);
+        }
+
         .sub-heading {
             width: calc(100% - 16px);
             height: 0 !important;
