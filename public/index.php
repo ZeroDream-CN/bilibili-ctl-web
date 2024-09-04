@@ -282,6 +282,18 @@ class BiliComments
                             die($this->getErrorTemplate('安装失败', '请填写所有必要的信息。'));
                         }
                     }
+                    // Check username
+                    if (!preg_match('/^[a-zA-Z0-9_]{2,16}$/', $_POST['admin_user'])) {
+                        die($this->getErrorTemplate('安装失败', '用户名不符合规范 (2-16 位字母、数字或下划线)。'));
+                    }
+                    // Check prefix
+                    if (!preg_match('/^[a-zA-Z0-9_]{0,16}$/', $_POST['db_pfix'])) {
+                        die($this->getErrorTemplate('安装失败', '表前缀不符合规范 (0-16 位字母、数字或下划线)。'));
+                    }
+                    // Check db name
+                    if (!preg_match('/^[a-zA-Z0-9_-]{1,64}$/', $_POST['db_name'])) {
+                        die($this->getErrorTemplate('安装失败', '数据库名不符合规范 (1-64 位字母、数字、下划线或短横线)。'));
+                    }
                     $conn = new PDO(sprintf('mysql:host=%s;port=%d;dbname=%s', $_POST['db_host'], $_POST['db_port'], $_POST['db_name']), $_POST['db_user'], $_POST['db_pass']);
                     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
                     $conn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
@@ -291,10 +303,6 @@ class BiliComments
                     $stmt->execute([$_POST['db_name']]);
                     if ($stmt->rowCount() === 0) {
                         die($this->getErrorTemplate('安装失败', '数据库不存在。'));
-                    }
-                    // Check username
-                    if (!preg_match('/^[a-zA-Z0-9_]{2,16}$/', $_POST['admin_user'])) {
-                        die($this->getErrorTemplate('安装失败', '用户名不符合规范 (2-16 位字母、数字或下划线)。'));
                     }
                     // Create tables
                     $installSQL = file_get_contents(sprintf('%s/../data/install.sql', ROOT));
