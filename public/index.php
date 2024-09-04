@@ -9,7 +9,8 @@ class Bilibili
     protected $BASE      = 58;
     protected $data      = 'FcwAPNKTMug3GV5Lj7EJnHpWsx4tb8haYeviqBz6rkCy12mUSDQX9RdoZf';
 
-    public function av2bv($aid) {
+    public function av2bv($aid)
+    {
         $bytes = ['B', 'V', '1', '0', '0', '0', '0', '0', '0', '0', '0', '0'];
         $bvIndex = count($bytes) - 1;
         $tmp = (($this->MAX_AID | $aid) ^ $this->XOR_CODE);
@@ -25,21 +26,23 @@ class Bilibili
         $bv = 'BV1' . substr($bv, 3);
         return $bv;
     }
-    
-    public function bv2av($bvid) {
+
+    public function bv2av($bvid)
+    {
         $bvidArr = str_split($bvid);
         list($bvidArr[3], $bvidArr[9]) = [$bvidArr[9], $bvidArr[3]];
         list($bvidArr[4], $bvidArr[7]) = [$bvidArr[7], $bvidArr[4]];
         array_splice($bvidArr, 0, 3);
         $data = $this->data;
-        $tmp = array_reduce($bvidArr, function($pre, $bvidChar) use ($data) {
+        $tmp = array_reduce($bvidArr, function ($pre, $bvidChar) use ($data) {
             return (($pre * $this->BASE) + strpos($data, $bvidChar));
         }, 0);
         return intval((($tmp & $this->MASK_CODE) ^ $this->XOR_CODE));
     }
 }
 
-class BiliComments {
+class BiliComments
+{
     private $conn;
     public $redis;
     public $bilibili;
@@ -131,7 +134,7 @@ class BiliComments {
 
     /* Connections */
 
-    private function httpRequest(string $url, string $method = 'GET', array $data = [], array $headers = [], string $cookie = ""): array
+    public function httpRequest(string $url, string $method = 'GET', array $data = [], array $headers = [], string $cookie = ""): array
     {
         $curl = curl_init();
         curl_setopt($curl, CURLOPT_URL, $url);
@@ -223,10 +226,39 @@ class BiliComments {
     public function bv2av($bv): int
     {
         $tr = [
-            'F' => 0, 'D' => 1, '1' => 2, 'E' => 3, '5' => 4, '2' => 5, '8' => 6, 'C' => 7, '9' => 8, '6' => 9,
-            'A' => 10, '4' => 11, 'B' => 12, '3' => 13, '7' => 14, '0' => 15, 'X' => 16, 'W' => 17, 'Y' => 18,
-            'N' => 19, 'P' => 20, 'R' => 21, 'Q' => 22, 'S' => 23, 'T' => 24, 'U' => 25, 'V' => 26, 'G' => 27,
-            'H' => 28, 'J' => 29, 'K' => 30, 'L' => 31, 'M' => 32
+            'F' => 0,
+            'D' => 1,
+            '1' => 2,
+            'E' => 3,
+            '5' => 4,
+            '2' => 5,
+            '8' => 6,
+            'C' => 7,
+            '9' => 8,
+            '6' => 9,
+            'A' => 10,
+            '4' => 11,
+            'B' => 12,
+            '3' => 13,
+            '7' => 14,
+            '0' => 15,
+            'X' => 16,
+            'W' => 17,
+            'Y' => 18,
+            'N' => 19,
+            'P' => 20,
+            'R' => 21,
+            'Q' => 22,
+            'S' => 23,
+            'T' => 24,
+            'U' => 25,
+            'V' => 26,
+            'G' => 27,
+            'H' => 28,
+            'J' => 29,
+            'K' => 30,
+            'L' => 31,
+            'M' => 32
         ];
         $s = [11, 10, 3, 8, 4, 6];
         $x = [1, 2, 4, 8, 5, 9];
@@ -240,10 +272,39 @@ class BiliComments {
     public function av2bv($av): string
     {
         $tr = [
-            0 => 'F', 1 => 'D', 2 => '1', 3 => 'E', 4 => '5', 5 => '2', 6 => '8', 7 => 'C', 8 => '9', 9 => '6',
-            10 => 'A', 11 => '4', 12 => 'B', 13 => '3', 14 => '7', 15 => '0', 16 => 'X', 17 => 'W', 18 => 'Y',
-            19 => 'N', 20 => 'P', 21 => 'R', 22 => 'Q', 23 => 'S', 24 => 'T', 25 => 'U', 26 => 'V', 27 => 'G',
-            28 => 'H', 29 => 'J', 30 => 'K', 31 => 'L', 32 => 'M'
+            0 => 'F',
+            1 => 'D',
+            2 => '1',
+            3 => 'E',
+            4 => '5',
+            5 => '2',
+            6 => '8',
+            7 => 'C',
+            8 => '9',
+            9 => '6',
+            10 => 'A',
+            11 => '4',
+            12 => 'B',
+            13 => '3',
+            14 => '7',
+            15 => '0',
+            16 => 'X',
+            17 => 'W',
+            18 => 'Y',
+            19 => 'N',
+            20 => 'P',
+            21 => 'R',
+            22 => 'Q',
+            23 => 'S',
+            24 => 'T',
+            25 => 'U',
+            26 => 'V',
+            27 => 'G',
+            28 => 'H',
+            29 => 'J',
+            30 => 'K',
+            31 => 'L',
+            32 => 'M'
         ];
         $s = [9, 8, 1, 6, 4, 2];
         $x = [1, 2, 4, 8, 5, 9];
@@ -289,7 +350,7 @@ class BiliComments {
         if ($this->checkInstall()) {
             die($this->getErrorTemplate('重复安装', '当前系统已进行过安装，如需重新安装请删除 data/install.lock 文件。'));
         }
-        
+
         if (!isset($_POST['action']) || !is_string($_POST['action'])) {
             $vars = [
                 'db_host' => isset($_POST['db_host']) ? $_POST['db_host'] : 'localhost',
@@ -306,7 +367,7 @@ class BiliComments {
             ];
             die($this->getTemplate('install', $vars));
         } else {
-            switch($_POST['action']) {
+            switch ($_POST['action']) {
                 case 'install':
                     $checkList = ['db_host', 'db_port', 'db_user', 'db_pass', 'db_name', 'redis_host', 'redis_port', 'admin_user', 'admin_pass'];
                     foreach ($checkList as $key) {
@@ -347,7 +408,9 @@ class BiliComments {
                     $_POST['redis_host'] = $conn->quote($_POST['redis_host']);
                     $_POST['redis_pass'] = $conn->quote($_POST['redis_pass']);
                     // Create config file
-                    file_put_contents(sprintf('%s/../config.php', ROOT), <<<EOF
+                    file_put_contents(
+                        sprintf('%s/../config.php', ROOT),
+                        <<<EOF
 <?php
 define('DB_HOST', {$_POST['db_host']});
 define('DB_PORT', {$_POST['db_port']});
@@ -427,9 +490,27 @@ if (isset($_GET['action']) && is_string($_GET['action'])) {
             $comments->setConvar($_POST['key'], $_POST['value']);
             header('Location: /');
             exit;
+        case 'fetchBlacklist':
+            $url = 'https://api.bilibili.com/x/relation/blacks';
+            $response = $comments->httpRequest($url, 'GET', [], [
+                "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
+                "Referer: https://www.bilibili.com/",
+            ], $comments->getConvar('cookie'));
+            if ($response) {
+                $data = json_decode($response['data'], true) ?: [];
+                $blackList = [];
+                if ($data && $data['data'] && $data['data']['list']) {
+                    foreach ($data['data']['list'] as $blackItem) {
+                        $blackList[] = $blackItem['mid'];
+                    }
+                }
+                echo implode("\n", $blackList);
+            }
+            break;
         default:
             die($comments->getErrorTemplate('错误', '未知操作。'));
     }
+    exit;
 }
 
 $last = $comments->redis->get('btl_last_check');
@@ -444,22 +525,24 @@ if ($last && time() - $last > $interval * 4) {
 ?>
 <!DOCTYPE html>
 <html lang="zh-CN">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Bilibili 评论管理工具</title>
-        <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/bootstrap/4.5.3/css/bootstrap.min.css">
-        <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.6.0/css/all.min.css">
-        <style>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bilibili 评论管理工具</title>
+    <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/bootstrap/4.5.3/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+    <style>
         .sub-heading {
             width: calc(100% - 16px);
-            height: 0!important;
-            border-top: 1px solid #e9f1f1!important;
-            text-align: center!important;
-            margin-top: 32px!important;
-            margin-bottom: 40px!important;
+            height: 0 !important;
+            border-top: 1px solid #e9f1f1 !important;
+            text-align: center !important;
+            margin-top: 32px !important;
+            margin-bottom: 40px !important;
             margin-left: 7px;
         }
+
         .sub-heading span {
             display: inline-block;
             position: relative;
@@ -469,6 +552,7 @@ if ($last && time() - $last > $interval * 4) {
             color: #058;
             background-color: #fff;
         }
+
         .secure {
             font-family: monospace;
             font-size: 14px;
@@ -477,105 +561,114 @@ if ($last && time() - $last > $interval * 4) {
             transition: all 0.2s;
             word-break: break-all;
         }
-        .secure:focus, .secure:hover {
+
+        .secure:focus,
+        .secure:hover {
             filter: none;
         }
+
         .title {
             margin-bottom: 0px;
             font-weight: bold;
         }
+
         .title small {
             margin-left: 10px;
             font-size: 14px;
         }
+
         .title .badge {
             margin-left: 10px;
         }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="row justify-content-center">
-                <div class="col-md-12">
-                    <div class="card mt-5 mb-5">
-                        <div class="card-header">
-                            <h5 class="title">Bilibili 评论管理工具 <small>已登录 <?php echo htmlspecialchars($_SESSION['user']['username']); ?> (<a href="?logout">退出</a>) <span class="badge badge-<?php echo $health; ?>">上次检查</span> <?php echo $lastText; ?></small></h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col-sm-12">
-                                    <p>欢迎使用 Bilibili 评论管理工具，您可以在这里对系统设置进行修改。</p>
-                                    <div class="sub-heading"><span>Cookie 配置</span></div>
-                                    <p>请输入您的 Bilibili Cookie，用于评论操作。</p>
-                                    <textarea class="form-control convar secure" rows="5" data-convar-key="cookie" data-convar-type="string" placeholder="Cookie" style="margin-bottom: 16px;"><?php echo htmlspecialchars($comments->getConvar('cookie')); ?></textarea>
-                                </div>
-                                <div class="col-sm-6">
-                                    <div class="sub-heading"><span>黑名单设置</span></div>
-                                    <p>要屏蔽的用户名或 UID，每行一条。</p>
-                                    <textarea class="form-control convar" rows="5" data-convar-key="blacklist_users" data-convar-type="array" style="margin-bottom: 16px;"><?php echo htmlspecialchars(implode("\n", json_decode($comments->getConvar('blacklist_users', '[]')) ?: [])); ?></textarea>
-                                    <p>要屏蔽的关键词，每行一条。</p>
-                                    <textarea class="form-control convar" rows="5" data-convar-key="blacklist_words" data-convar-type="array" style="margin-bottom: 16px;"><?php echo htmlspecialchars(implode("\n", json_decode($comments->getConvar('blacklist_keywords', '[]')) ?: [])); ?></textarea>
-                                    <p>正则表达式匹配评论，每行一条。</p>
-                                    <textarea class="form-control convar" rows="5" data-convar-key="blacklist_regex" data-convar-type="array" style="margin-bottom: 16px;"><?php echo htmlspecialchars(implode("\n", json_decode($comments->getConvar('blacklist_regex', '[]')) ?: [])); ?></textarea>
-                                </div>
-                                <div class="col-sm-6">
-                                    <div class="sub-heading"><span>监控设置</span></div>
-                                    <p>白名单用户名或 UID，每行一条。</p>
-                                    <textarea class="form-control convar" rows="5" data-convar-key="whitelist_users" data-convar-type="array" style="margin-bottom: 16px;"><?php echo htmlspecialchars(implode("\n", json_decode($comments->getConvar('whitelist_users', '[]')) ?: [])); ?></textarea>
-                                    <p>要监控的视频 BV 号，每行一条。</p>
-                                    <textarea class="form-control convar" rows="5" data-convar-key="check_lists" data-convar-type="array" style="margin-bottom: 16px;"><?php echo htmlspecialchars(implode("\n", json_decode($comments->getConvar('check_lists', '[]')) ?: [])); ?></textarea>
-                                    <p>视频监控模式</p>
-                                    <select class="form-control convar" data-convar-key="check_mode" style="margin-bottom: 16px;">
-                                        <option value="0" <?php echo $comments->getConvar('check_mode') === '0' ? 'selected' : ''; ?>>监控所有视频</option>
-                                        <option value="1" <?php echo $comments->getConvar('check_mode') === '1' ? 'selected' : ''; ?>>仅监控指定视频</option>
-                                        <option value="2" <?php echo $comments->getConvar('check_mode') === '2' ? 'selected' : ''; ?>>不监控指定视频</option>
-                                    </select>
-                                    <p>评论监控间隔时间（秒）</p>
-                                    <input type="number" class="form-control convar" data-convar-key="interval" placeholder="10" value="<?php echo htmlspecialchars($comments->getConvar('interval', '30')); ?>" style="margin-bottom: 16px;">
-                                </div>
-                                <div class="col-sm-12">
-                                    <div class="sub-heading"><span>最近删除的评论</span></div>
-                                    <table class="table table-striped table-hover">
-                                        <thead>
-                                            <tr>
-                                                <th>用户名</th>
-                                                <th>视频</th>
-                                                <th>评论</th>
-                                                <th>时间</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <?php
-                                            $stmt = $comments->getDatabase()->query(sprintf('SELECT * FROM `%s` ORDER BY `time` DESC LIMIT 10', $comments->getTableName('deleted')));
-                                            $result = $stmt->fetchAll();
-                                            foreach ($result as $comment) {
-                                                $bvNumber = $comments->bilibili->av2bv($comment['oid']);
-                                                echo '<tr>';
-                                                echo '<td>' . htmlspecialchars($comment['username']) . '</td>';
-                                                echo '<td><a href="https://www.bilibili.com/video/' . $bvNumber . '" target="_blank">' . $bvNumber . '</a></td>';
-                                                echo '<td>' . htmlspecialchars($comment['message']) . '</td>';
-                                                echo '<td>' . date('Y-m-d H:i:s', $comment['time']) . '</td>';
-                                                echo '</tr>';
-                                            }
-                                            ?>
-                                        </tbody>
-                                    </table>
-                                </div>
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-12">
+                <div class="card mt-5 mb-5">
+                    <div class="card-header">
+                        <h5 class="title">Bilibili 评论管理工具 <small>已登录 <?php echo htmlspecialchars($_SESSION['user']['username']); ?> (<a href="?logout">退出</a>) <span class="badge badge-<?php echo $health; ?>">上次检查</span> <?php echo $lastText; ?></small></h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <p>欢迎使用 Bilibili 评论管理工具，您可以在这里对系统设置进行修改。</p>
+                                <div class="sub-heading"><span>Cookie 配置</span></div>
+                                <p>请输入您的 Bilibili Cookie，用于评论操作。</p>
+                                <textarea class="form-control convar secure" rows="5" data-convar-key="cookie" data-convar-type="string" placeholder="Cookie" style="margin-bottom: 16px;"><?php echo htmlspecialchars($comments->getConvar('cookie')); ?></textarea>
+                            </div>
+                            <div class="col-sm-6">
+                                <div class="sub-heading"><span>黑名单设置</span></div>
+                                <p>要屏蔽的用户名或 UID，每行一条 (<a href="javascript:void(0);" onclick="fetchBlacklist()">导入黑名单</a>)</p>
+                                <textarea class="form-control convar" rows="5" data-convar-key="blacklist_users" data-convar-type="array" style="margin-bottom: 16px;"><?php echo htmlspecialchars(implode("\n", json_decode($comments->getConvar('blacklist_users', '[]')) ?: [])); ?></textarea>
+                                <p>要屏蔽的关键词，每行一条</p>
+                                <textarea class="form-control convar" rows="5" data-convar-key="blacklist_words" data-convar-type="array" style="margin-bottom: 16px;"><?php echo htmlspecialchars(implode("\n", json_decode($comments->getConvar('blacklist_words', '[]')) ?: [])); ?></textarea>
+                                <p>正则表达式匹配评论，每行一条</p>
+                                <textarea class="form-control convar" rows="5" data-convar-key="blacklist_regex" data-convar-type="array" style="margin-bottom: 16px;"><?php echo htmlspecialchars(implode("\n", json_decode($comments->getConvar('blacklist_regex', '[]')) ?: [])); ?></textarea>
+                            </div>
+                            <div class="col-sm-6">
+                                <div class="sub-heading"><span>监控设置</span></div>
+                                <p>白名单用户名或 UID，每行一条</p>
+                                <textarea class="form-control convar" rows="5" data-convar-key="whitelist_users" data-convar-type="array" style="margin-bottom: 16px;"><?php echo htmlspecialchars(implode("\n", json_decode($comments->getConvar('whitelist_users', '[]')) ?: [])); ?></textarea>
+                                <p>要监控的视频 BV 号，每行一条</p>
+                                <textarea class="form-control convar" rows="5" data-convar-key="check_lists" data-convar-type="array" style="margin-bottom: 16px;"><?php echo htmlspecialchars(implode("\n", json_decode($comments->getConvar('check_lists', '[]')) ?: [])); ?></textarea>
+                                <p>视频监控模式</p>
+                                <select class="form-control convar" data-convar-key="check_mode" style="margin-bottom: 16px;">
+                                    <option value="0" <?php echo $comments->getConvar('check_mode') === '0' ? 'selected' : ''; ?>>监控所有视频</option>
+                                    <option value="1" <?php echo $comments->getConvar('check_mode') === '1' ? 'selected' : ''; ?>>仅监控指定视频</option>
+                                    <option value="2" <?php echo $comments->getConvar('check_mode') === '2' ? 'selected' : ''; ?>>不监控指定视频</option>
+                                </select>
+                                <p>评论监控间隔时间（秒）</p>
+                                <input type="number" class="form-control convar" data-convar-key="interval" placeholder="10" value="<?php echo htmlspecialchars($comments->getConvar('interval', '30')); ?>" style="margin-bottom: 16px;">
+                            </div>
+                            <div class="col-sm-12">
+                                <div class="sub-heading"><span>最近删除的评论</span></div>
+                                <table class="table table-striped table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>用户名</th>
+                                            <th>视频</th>
+                                            <th>评论</th>
+                                            <th>类型</th>
+                                            <th>时间</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php
+                                        $stmt = $comments->getDatabase()->query(sprintf('SELECT * FROM `%s` ORDER BY `time` DESC LIMIT 10', $comments->getTableName('deleted')));
+                                        $result = $stmt->fetchAll();
+                                        foreach ($result as $comment) {
+                                            $bvNumber = $comments->bilibili->av2bv($comment['oid']);
+                                            $matchs = ['users' => '用户', 'words' => '关键词', 'regex' => '正则表达式'];
+                                            echo '<tr>';
+                                            echo '<td>' . htmlspecialchars($comment['username']) . '</td>';
+                                            echo '<td><a href="https://www.bilibili.com/video/' . $bvNumber . '" target="_blank">' . $bvNumber . '</a></td>';
+                                            echo '<td>' . htmlspecialchars($comment['message']) . '</td>';
+                                            echo '<td>' . ($matchs[$comment['match']] ?: $comment['match']) . '</td>';
+                                            echo '<td>' . date('Y-m-d H:i:s', $comment['time']) . '</td>';
+                                            echo '</tr>';
+                                        }
+                                        ?>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
-                        <div class="card-footer text-center text-muted">
-                            <small>&copy; <?php echo sprintf('%d %s', date('Y'), $_SERVER['HTTP_HOST']); ?> | Powered by <a href="https://github.com/ZeroDream-CN/bilibili-ctl-web" target="_blank">Bilibili CTL Web</a></small>
-                        </div>
+                    </div>
+                    <div class="card-footer text-center text-muted">
+                        <small>&copy; <?php echo sprintf('%d %s', date('Y'), $_SERVER['HTTP_HOST']); ?> | Powered by <a href="https://github.com/ZeroDream-CN/bilibili-ctl-web" target="_blank">Bilibili CTL Web</a></small>
                     </div>
                 </div>
             </div>
         </div>
-    </body>
-    <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-    <script src="https://cdn.bootcdn.net/ajax/libs/bootstrap/4.5.3/js/bootstrap.min.js"></script>
-    <script src="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.6.0/js/all.min.js"></script>
-    <script src="https://cdn.bootcdn.net/ajax/libs/sweetalert2/11.12.4/sweetalert2.all.min.js"></script>
-    <script>
+    </div>
+</body>
+<script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script src="https://cdn.bootcdn.net/ajax/libs/bootstrap/4.5.3/js/bootstrap.min.js"></script>
+<script src="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.6.0/js/all.min.js"></script>
+<script src="https://cdn.bootcdn.net/ajax/libs/sweetalert2/11.12.4/sweetalert2.all.min.js"></script>
+<script>
     $(document).ready(function() {
         $('.convar').on('change', function() {
             var key = $(this).data('convar-key');
@@ -587,7 +680,10 @@ if ($last && time() - $last > $interval * 4) {
                 });
                 value = JSON.stringify(value);
             }
-            $.post('?action=updateConvar', {key: key, value: value}, function() {
+            $.post('?action=updateConvar', {
+                key: key,
+                value: value
+            }, function() {
                 Swal.fire({
                     icon: 'success',
                     title: '设置已保存',
@@ -597,5 +693,19 @@ if ($last && time() - $last > $interval * 4) {
             });
         });
     });
-    </script>
+
+    function fetchBlacklist() {
+        $.get('?action=fetchBlacklist', function(data) {
+            var textarea = $('textarea[data-convar-key="blacklist_users"]');
+            var value = textarea.val().split('\n').filter(function(item) {
+                return item.trim() !== '';
+            });
+            value = value.concat(data.split('\n').filter(function(item) {
+                return item.trim() !== '';
+            }));
+            textarea.val(value.join('\n'));
+        });
+    }
+</script>
+
 </html>

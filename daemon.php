@@ -105,6 +105,7 @@ class Daemon
                         $content = $reply['content']['message'];
                         if ($this->shouldCheckVideo($oid)) {
                             if (!$this->isWhiteListUser($user, $mid)) {
+                                $this->log('检测到新评论:', sprintf("{$user} ($mid)"), $content);
                                 if ($this->isBlackListUser($user, $mid)) {
                                     $this->log('检测到黑名单用户评论:', sprintf("{$user} ($mid)"), $content);
                                     $this->deleteComment($oid, $type, $rpid);

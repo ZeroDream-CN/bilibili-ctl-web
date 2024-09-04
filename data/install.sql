@@ -10,14 +10,14 @@ CREATE TABLE `{{db_pfix}}convars`  (
 
 DROP TABLE IF EXISTS `{{db_pfix}}deleted`;
 CREATE TABLE `{{db_pfix}}deleted`  (
-  `oid` bigint(16) NOT NULL COMMENT '原始 ID',
   `rpid` bigint(16) NOT NULL COMMENT '评论 ID',
+  `oid` bigint(16) NOT NULL COMMENT '视频 ID',
   `username` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '评论用户名',
   `message` mediumtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '评论内容',
   `type` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '评论类型',
   `match` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '删除类型（user 用户，keyword 关键字，regex 正则）',
   `time` bigint(16) NOT NULL COMMENT '删除时间',
-  PRIMARY KEY (`oid`) USING BTREE
+  PRIMARY KEY (`rpid`) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic;
 
 DROP TABLE IF EXISTS `{{db_pfix}}users`;
