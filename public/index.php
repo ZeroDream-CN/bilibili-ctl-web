@@ -695,15 +695,19 @@ if ($last && time() - $last > $interval * 4) {
     });
 
     function fetchBlacklist() {
-        $.get('?action=fetchBlacklist', function(data) {
-            var textarea = $('textarea[data-convar-key="blacklist_users"]');
-            var value = textarea.val().split('\n').filter(function(item) {
-                return item.trim() !== '';
-            });
-            value = value.concat(data.split('\n').filter(function(item) {
-                return item.trim() !== '';
-            }));
-            textarea.val(value.join('\n'));
+        Swal.fire({
+            title: '确认导入',
+            text: '导入黑名单将会覆盖当前设置，是否继续？',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: '继续',
+            cancelButtonText: '取消',
+        }).then(function(result) {
+            if (result.isConfirmed) {
+                $.get('?action=fetchBlacklist', function(data) {
+                    $('textarea[data-convar-key="blacklist_users"]').val(data);
+                });
+            }
         });
     }
 </script>
