@@ -119,18 +119,25 @@
                                     <span>管理员设置</span>
                                 </div>
                             </div>
-                            <div class="col-sm-6">
+                            <div class="col-sm-4">
                                 <div class="form-group">
                                     <label for="admin_user">管理员用户名</label>
                                     <input type="text" class="form-control" id="admin_user" name="admin_user"
                                         placeholder="admin" required value="{{admin_user}}">
                                 </div>
                             </div>
-                            <div class="col-sm-6">
+                            <div class="col-sm-4">
                                 <div class="form-group">
                                     <label for="admin_pass">管理员密码</label>
                                     <input type="password" class="form-control" id="admin_pass" name="admin_pass"
                                         placeholder="password" required value="{{admin_pass}}">
+                                </div>
+                            </div>
+                            <div class="col-sm-4">
+                                <div class="form-group">
+                                    <label for="api_token">API 秘钥</label>
+                                    <input type="text" class="form-control" id="api_token" name="api_token"
+                                        placeholder="token" required value="{{api_token}}">
                                 </div>
                             </div>
                         </form>
