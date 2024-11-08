@@ -121,7 +121,7 @@ class BiliComments
         return $data && $data['code'] === 0;
     }
 
-    private function parseCookie(string $cookie): array
+    public function parseCookie(string $cookie): array
     {
         $cookie = explode(';', $cookie);
         $cookie = array_reduce($cookie, function ($carry, $item) {
@@ -271,12 +271,13 @@ class BiliComments
                 'redis_pass' => isset($_POST['redis_pass']) ? $_POST['redis_pass'] : '',
                 'admin_user' => isset($_POST['admin_user']) ? $_POST['admin_user'] : 'admin',
                 'admin_pass' => isset($_POST['admin_pass']) ? $_POST['admin_pass'] : '',
+                'api_token' => isset($_POST['api_token']) ? $_POST['api_token'] : sha1(uniqid()),
             ];
             die($this->getTemplate('install', $vars));
         } else {
             switch ($_POST['action']) {
                 case 'install':
-                    $checkList = ['db_host', 'db_port', 'db_user', 'db_pass', 'db_name', 'redis_host', 'redis_port', 'admin_user', 'admin_pass'];
+                    $checkList = ['db_host', 'db_port', 'db_user', 'db_pass', 'db_name', 'redis_host', 'redis_port', 'admin_user', 'admin_pass', 'api_token'];
                     foreach ($checkList as $key) {
                         if (!isset($_POST[$key]) || !is_string($_POST[$key])) {
                             die($this->getErrorTemplate('安装失败', '请填写所有必要的信息。'));
@@ -322,6 +323,7 @@ class BiliComments
                     $_POST['db_pfix'] = $conn->quote($_POST['db_pfix']);
                     $_POST['redis_host'] = $conn->quote($_POST['redis_host']);
                     $_POST['redis_pass'] = $conn->quote($_POST['redis_pass']);
+                    $_POST['api_token'] = $conn->quote($_POST['api_token']);
                     // Create config file
                     file_put_contents(
                         sprintf('%s/../config.php', ROOT),
@@ -337,6 +339,8 @@ define('DB_PFIX', {$_POST['db_pfix']});
 define('REDIS_HOST', {$_POST['redis_host']});
 define('REDIS_PORT', {$_POST['redis_port']});
 define('REDIS_PASS', {$_POST['redis_pass']});
+
+define('API_TOKEN', {$_POST['api_token']});
 EOF
                     );
                     // Create install lock file
@@ -363,7 +367,7 @@ require_once(ROOT . '/../config.php');
 
 $comments->init();
 
-if (!isset($_SESSION['user'])) {
+if (!isset($_SESSION['user']) && (!isset($_POST['token']) || $_POST['token'] !== API_TOKEN)) {
     // Http basic auth
     if (!isset($_POST['username']) || !isset($_POST['password'])) {
         $comments->basicAuth();
@@ -392,6 +396,26 @@ if (isset($_GET['logout'])) {
 
 if (isset($_GET['action']) && is_string($_GET['action'])) {
     switch ($_GET['action']) {
+        case 'updateCookie':
+            if (!isset($_POST['cookie'])) {
+                exit(json_encode(['success' => false, 'message' => '请填写所有必要的信息。']));
+            }
+            $oldCookie = $comments->getConvar('cookie');
+            $newCookie = $_POST['cookie'];
+            $oldCookieArray = $comments->parseCookie($oldCookie);
+            $newCookieArray = $comments->parseCookie($newCookie);
+            $cookie = array_merge($oldCookieArray, $newCookieArray);
+            $buildCookie = [];
+            foreach ($cookie as $key => $value) {
+                $buildCookie[] = sprintf('%s=%s', $key, $value);
+            }
+            $cookie = implode('; ', $buildCookie);
+            if (!$comments->validCookie($cookie)) {
+                exit(json_encode(['success' => false, 'message' => 'Cookie 验证失败 | ' . $cookie]));
+            }
+            $comments->setConvar('cookie', $cookie);
+            exit(json_encode(['success' => true, 'message' => 'Cookie 已更新。']));
+            break;
         case 'updateConvar':
             if (!isset($_POST['key']) || !isset($_POST['value'])) {
                 die($comments->getErrorTemplate('错误', '请填写所有必要的信息。'));
