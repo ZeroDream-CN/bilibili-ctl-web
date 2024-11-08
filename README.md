@@ -114,5 +114,10 @@ WantedBy=multi-user.target
 
 </details>
 
+## Cookie 自动更新
+由于 B 站更新了 Cookie 刷新算法，所以 Cookie 每隔一段时间就会失效，因此这里提供了一个[自动更新脚本](/bctl.user.js)，可以在你访问创作者中心的时候自动更新 Cookie，需要搭配 [Tampermonkey](https://www.tampermonkey.net/)（篡改猴）浏览器插件使用。
+
+安装脚本后，首次访问创作者中心会弹出输入框提示输入 Bilibili-Ctl-Web 网站地址以及 API Token。
+
 ## 开源协议
 本软件使用 GPL v3 协议开放源代码，任何人可以在遵循开源协议的情况下对本软件进行修改和使用。
