@@ -79,7 +79,7 @@ class Daemon
         while (true) {
             $cookie = $this->getConvar('cookie');
             $this->interval = $this->getConvar('interval', 30);
-            if ($cookie && !empty($cookie) && $this->validCookie($cookie)) {
+            if ($cookie && !empty($cookie) && $this->validCookie($cookie, true)) {
                 $url = "https://api.bilibili.com/x/v2/reply/up/fulllist";
                 $queries = [
                     "order"  => $this->getConvar('req_order', '1'),
@@ -128,7 +128,9 @@ class Daemon
             } else {
                 $this->log('您还未配置 Cookie 或 Cookie 已失效，请先配置 Cookie。');
                 $this->log('配置教程：https://github.com/ZeroDream-CN/bilibili-ctl-web/');
-                $this->configureCookie();
+                if (CONFIG_ON_INVALID) {
+                    $this->configureCookie();
+                }
             }
             $this->redis->set('btl_last_check', time());
             sleep($this->interval);
@@ -294,7 +296,7 @@ class Daemon
         }
     }
 
-    private function validCookie(string $cookie): bool
+    private function validCookie(string $cookie, bool $update = false): bool
     {
         $cookieArray = $this->parseCookie($cookie);
         if (!isset($cookieArray['bili_jct'])) {
@@ -308,7 +310,25 @@ class Daemon
         ];
         $response = $this->httpRequest($url, 'GET', [], $headers, $cookie);
         $data = json_decode($response['data'], true);
-        return $data && $data['code'] === 0;
+        $result = $data && $data['code'] === 0;
+        if ($update) {
+            $url = "https://member.bilibili.com/platform/home";
+            $response = $this->httpRequest($url, 'GET', [], $headers, $cookie);
+            $headers = $response['headers'];
+            if (isset($headers['set-cookie'])) {
+                $setCookie = $headers['set-cookie'];
+                $setCookie = explode(',', $setCookie);
+                $setCookie = array_reduce($setCookie, function ($carry, $item) {
+                    $exp = explode(';', $item);
+                    $carry[] = $exp[0];
+                    return $carry;
+                }, []);
+                $setCookie = implode('; ', $setCookie);
+                $this->log('更新 Cookie:', $setCookie);
+                $this->setConvar('cookie', $setCookie);
+            }
+        }
+        return $result;
     }
 
     private function parseCookie(string $cookie): array
@@ -332,6 +352,7 @@ class Daemon
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
         curl_setopt($curl, CURLOPT_COOKIE, $cookie);
+        curl_setopt($curl, CURLOPT_HEADER, true);
         if ($method === 'POST') {
             curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query($data));
         } elseif ($method === 'GET') {
@@ -350,9 +371,26 @@ class Daemon
             curl_setopt($curl, CURLOPT_URL, $url);
         }
         $response = curl_exec($curl);
+        $headerSize = curl_getinfo($curl, CURLINFO_HEADER_SIZE);
+        $responseHeaders = substr($response, 0, $headerSize);
+        $responseBody = substr($response, $headerSize);
         $error = curl_error($curl);
+        // Process headers
+        // $this->log('Response headers:', $responseHeaders);
+        $responseHeaders = explode("\r\n", $responseHeaders);
+        $responseHeaders = array_reduce($responseHeaders, function ($carry, $item) {
+            $exp = explode(':', $item);
+            if (count($exp) > 1) {
+                $key = trim($exp[0]);
+                $value = trim($exp[1]);
+                // Format key
+                $key = strtolower($key);
+                $carry[$key] = $value;
+            }
+            return $carry;
+        }, []);
         curl_close($curl);
-        return ['data' => $response, 'error' => $error];
+        return ['data' => $responseBody, 'error' => $error, 'headers' => $responseHeaders];
     }
 
     private function checkDatabase(): bool
