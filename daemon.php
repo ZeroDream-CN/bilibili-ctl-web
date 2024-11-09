@@ -327,7 +327,7 @@ class Daemon
         }
     }
 
-    public function validCookie(string $cookie): array
+    public function validCookie(string $cookie, bool $shouldUpdate = false): array
     {
         $cookieArray = $this->parseCookie($cookie);
         if (!isset($cookieArray['bili_jct'])) {
