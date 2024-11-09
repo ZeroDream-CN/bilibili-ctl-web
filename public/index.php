@@ -341,6 +341,7 @@ define('REDIS_PORT', {$_POST['redis_port']});
 define('REDIS_PASS', {$_POST['redis_pass']});
 
 define('API_TOKEN', {$_POST['api_token']});
+define('CONFIG_ON_INVALID', false); // Cookie 失效后是否提示重新输入
 EOF
                     );
                     // Create install lock file
