@@ -7,6 +7,8 @@ if (!file_exists(ROOT . '/config.php')) {
 }
 
 require_once(ROOT . '/config.php');
+// time zone
+date_default_timezone_set('Asia/Shanghai');
 
 class Bilibili
 {
