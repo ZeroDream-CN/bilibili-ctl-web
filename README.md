@@ -16,6 +16,13 @@ Bilibili 评论管理工具，帮助你自动清理不想要的评论内容，�
 * 可配置的监控时间
 
 ## 如何使用
+
+### 一键懒人包（Windows）
+首先你需要下载 [Bilibili-Ctl-Windows](https://github.com/ZeroDream-CN/bilibili-ctl-web/releases/download/1.0.0/biblibili_ctl_windows.zip) 并解压到你的电脑上，然后运行 `start.cmd` 即可。
+
+> 如果出现 VCRUNTIME140_1.dll 丢失的情况，请下载 [Visual C++ 运行时](https://aka.ms/vs/17/release/vc_redist.x64.exe) 并安装。
+
+### 手动搭建
 首先你需要准备以下环境：
 
 * PHP 7 或更高版本
@@ -120,7 +127,9 @@ WantedBy=multi-user.target
 ## Cookie 自动更新
 由于 B 站更新了 Cookie 刷新算法，所以 Cookie 每隔一段时间就会失效，因此这里提供了一个[自动更新脚本](/bctl.user.js)，可以在你访问创作者中心的时候自动更新 Cookie，需要搭配 [Tampermonkey](https://www.tampermonkey.net/)（篡改猴）浏览器插件使用。
 
-安装脚本后，首次访问创作者中心会弹出输入框提示输入 Bilibili-Ctl-Web 网站地址以及 API Token。
+请注意，由于 Bilibili 的 SESSDATA 设置了 HttpOnly 属性，所以无法通过 JavaScript 直接获取，因此您需要在 Tampermonkey 的设置中，将 **安全** > **允许脚本访问 Cookie** 设置为 `All`（全部）。同时将 **@connect 模式** 设置为 `已禁用`。
+
+脚本安装完成后，您在首次访问创作者中心时，会弹出输入框提示您输入 Bilibili-Ctl-Web 的网站页面地址以及 API Token。API Token 可以在 config.php 中找到。如果你使用的是一键懒人包，那么默认的网站地址是 `http://localhost:12380/`。
 
 ## 开源协议
 本软件使用 GPL v3 协议开放源代码，任何人可以在遵循开源协议的情况下对本软件进行修改和使用。
