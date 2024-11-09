@@ -45,6 +45,7 @@ class BiliComments
 {
     private $conn;
     public $redis;
+    public $cache = [];
     public $bilibili;
 
     public function init(): void
@@ -72,7 +73,7 @@ class BiliComments
 
     public function getConvar(string $key, string $default = ""): string
     {
-        $result = $this->redis->get($key);
+        $result = $this->getCacheValue($key);
         if ($result) {
             return $result;
         }
@@ -80,17 +81,20 @@ class BiliComments
         $stmt->execute([$key]);
         $result = $stmt->fetch();
         $result = $result ? $result['value'] : $default;
-        $this->redis->set("btl_convar_{$key}", $result);
-        $this->redis->expire("btl_convar_{$key}", 86400);
+        $this->setCacheValue($key, $result, 86400);
         return $result;
     }
 
     public function setConvar(string $key, string $value): void
     {
-        $stmt = $this->conn->prepare(sprintf('INSERT INTO `%s` (`key`, `value`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `value` = ?', $this->getTableName('convars')));
-        $stmt->execute([$key, $value, $value]);
-        $this->redis->set("btl_convar_{$key}", $value);
-        $this->redis->expire("btl_convar_{$key}", 86400);
+        if (DB_TYPE == 'mysql') {
+            $stmt = $this->conn->prepare(sprintf('INSERT INTO `%s` (`key`, `value`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `value` = ?', $this->getTableName('convars')));
+            $stmt->execute([$key, $value, $value]);
+        } elseif (DB_TYPE == 'sqlite') {
+            $stmt = $this->conn->prepare(sprintf('INSERT OR REPLACE INTO `%s` (`key`, `value`) VALUES (?, ?)', $this->getTableName('convars')));
+            $stmt->execute([$key, $value]);
+        }
+        $this->setCacheValue($key, $value, 86400);
     }
 
     public function refreshConvars(): void
@@ -98,14 +102,43 @@ class BiliComments
         $stmt = $this->conn->query(sprintf('SELECT `key`, `value` FROM `%s`', $this->getTableName('convars')));
         $convars = $stmt->fetchAll();
         foreach ($convars as $convar) {
-            $this->redis->set("btl_convar_{$convar['key']}", $convar['value']);
-            $this->redis->expire("btl_convar_{$convar['key']}", 86400);
+            $this->setCacheValue($convar['key'], $convar['value'], 86400);
+        }
+    }
+
+    public function getCacheValue(string $key, $default = null)
+    {
+        if (CACHE_TYPE == 'redis') {
+            $result = $this->redis->get($key);
+            if ($result) {
+                return $result;
+            }
+        } elseif (CACHE_TYPE == 'file') {
+            $result = $this->cache[$key] ?? null;
+            if ($result && (!$result['expire'] || $result['expire'] > time())) {
+                return $result['value'];
+            }
+        }
+        return $default;
+    }
+
+    public function setCacheValue(string $key, $value, $expire = false): void
+    {
+        if (CACHE_TYPE == 'redis') {
+            $this->redis->set($key, $value);
+            if ($expire) {
+                $this->redis->expire($key, $expire);
+            }
+        } elseif (CACHE_TYPE == 'file') {
+            $cachePath = sprintf('%s/../%s', ROOT, CACHE_PATH);
+            $this->cache[$key] = ['value' => $value, 'expire' => $expire ? time() + $expire : false];
+            file_put_contents($cachePath, json_encode($this->cache));
         }
     }
 
     /* Cookies */
 
-    public function validCookie(string $cookie): bool
+    public function validCookie(string $cookie): array
     {
         $cookieArray = $this->parseCookie($cookie);
         if (!isset($cookieArray['bili_jct'])) {
@@ -118,15 +151,26 @@ class BiliComments
         ];
         $response = $this->httpRequest($url, 'GET', [], $headers, $cookie);
         $data = json_decode($response['data'], true);
-        return $data && $data['code'] === 0;
+        if ($data && $data['code'] === 0) {
+            return ['success' => true, 'message' => 'Cookie 有效。'];
+        } else {
+            return ['success' => false, 'message' => sprintf('HTTP Code: %d | %s', $response['status'], $response['error'])];
+        }
     }
 
     public function parseCookie(string $cookie): array
     {
+        if (empty($cookie)) {
+            return [];
+        }
         $cookie = explode(';', $cookie);
         $cookie = array_reduce($cookie, function ($carry, $item) {
             $exp = explode('=', $item);
-            $carry[trim($exp[0])] = trim($exp[1]);
+            if (count($exp) == 2) {
+                $carry[trim($exp[0])] = trim($exp[1]);
+            } else {
+                $carry[trim($exp[0])] = '';
+            }
             return $carry;
         }, []);
         return $cookie;
@@ -140,6 +184,8 @@ class BiliComments
         curl_setopt($curl, CURLOPT_URL, $url);
         curl_setopt($curl, CURLOPT_CUSTOMREQUEST, $method);
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, false);
         curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
         curl_setopt($curl, CURLOPT_COOKIE, $cookie);
         if ($method === 'POST') {
@@ -160,9 +206,10 @@ class BiliComments
             curl_setopt($curl, CURLOPT_URL, $url);
         }
         $response = curl_exec($curl);
+        $status = curl_getinfo($curl, CURLINFO_HTTP_CODE);
         $error = curl_error($curl);
         curl_close($curl);
-        return ['data' => $response, 'error' => $error];
+        return ['data' => $response, 'error' => $error, 'status' => $status];
     }
 
     public function getDatabase(): PDO
@@ -177,18 +224,39 @@ class BiliComments
 
     private function connectDatabase(): void
     {
-        $this->conn = new PDO(sprintf('mysql:host=%s;port=%d;dbname=%s', DB_HOST, DB_PORT, DB_NAME), DB_USER, DB_PASS);
-        $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        $this->conn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-        $this->conn->exec('SET NAMES utf8mb4');
+        if (DB_TYPE == 'mysql') {
+            $this->conn = new PDO(sprintf('mysql:host=%s;port=%d;dbname=%s', DB_HOST, DB_PORT, DB_NAME), DB_USER, DB_PASS);
+            $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            $this->conn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+            $this->conn->exec('SET NAMES utf8mb4');
+        } elseif (DB_TYPE == 'sqlite') {
+            $this->conn = new PDO('sqlite:../' . DB_FILE);
+            $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            $this->conn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+            $this->conn->exec('PRAGMA foreign_keys = ON');
+        } else {
+            die('Database type not supported.');
+        }
     }
 
     private function connectRedis(): void
     {
-        $this->redis = new Redis();
-        $this->redis->connect(REDIS_HOST, REDIS_PORT);
-        if (REDIS_PASS && !empty(REDIS_PASS)) {
-            $this->redis->auth(REDIS_PASS);
+        if (CACHE_TYPE == 'redis') {
+            $this->redis = new Redis();
+            $this->redis->connect(REDIS_HOST, REDIS_PORT);
+            if (REDIS_PASS && !empty(REDIS_PASS)) {
+                $this->redis->auth(REDIS_PASS);
+            }
+        } elseif (CACHE_TYPE == 'file') {
+            $cachePath = sprintf('%s/../%s', ROOT, CACHE_PATH);
+            if (!file_exists($cachePath)) {
+                file_put_contents($cachePath, '[]');
+            }
+            $data = file_get_contents($cachePath);
+            $data = json_decode($data, true);
+            $this->cache = $data;
+        } else {
+            die('Cache type not supported.');
         }
     }
 
@@ -206,10 +274,11 @@ class BiliComments
 
     private function checkRedis(): bool
     {
+        if (CACHE_TYPE == 'file') return true;
         if (!$this->redis) return false;
 
         try {
-            $this->redis->ping();
+            $this->redis?->ping();
             return true;
         } catch (RedisException $e) {
             return false;
@@ -252,6 +321,19 @@ class BiliComments
         return file_exists($path);
     }
 
+    public function getParentPath($path): string
+    {
+        $current = ROOT;
+        $exp = explode(DIRECTORY_SEPARATOR, $current);
+        $parent = '';
+        for ($i = 0; $i < count($exp) - 1; $i++) {
+            $parent .= $exp[$i] . DIRECTORY_SEPARATOR;
+        }
+        $parent = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $parent);
+        $path = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $path);
+        return $parent . $path;
+    }
+
     public function doInstall(): void
     {
         if ($this->checkInstall()) {
@@ -260,15 +342,19 @@ class BiliComments
 
         if (!isset($_POST['action']) || !is_string($_POST['action'])) {
             $vars = [
+                'db_type' => 'mysql',
                 'db_host' => isset($_POST['db_host']) ? $_POST['db_host'] : 'localhost',
                 'db_port' => isset($_POST['db_port']) ? $_POST['db_port'] : 3306,
                 'db_user' => isset($_POST['db_user']) ? $_POST['db_user'] : '',
                 'db_pass' => isset($_POST['db_pass']) ? $_POST['db_pass'] : '',
                 'db_name' => isset($_POST['db_name']) ? $_POST['db_name'] : 'bilibili_ctl',
                 'db_pfix' => isset($_POST['db_pfix']) ? $_POST['db_pfix'] : '',
+                'db_file' => isset($_POST['db_file']) ? $_POST['db_file'] : 'data/bilibili_ctl.db',
+                'cache_type' => 'redis',
                 'redis_host' => isset($_POST['redis_host']) ? $_POST['redis_host'] : '',
                 'redis_port' => isset($_POST['redis_port']) ? $_POST['redis_port'] : 6379,
                 'redis_pass' => isset($_POST['redis_pass']) ? $_POST['redis_pass'] : '',
+                'cache_path' => isset($_POST['cache_path']) ? $_POST['cache_path'] : 'data/cache.json',
                 'admin_user' => isset($_POST['admin_user']) ? $_POST['admin_user'] : 'admin',
                 'admin_pass' => isset($_POST['admin_pass']) ? $_POST['admin_pass'] : '',
                 'api_token' => isset($_POST['api_token']) ? $_POST['api_token'] : sha1(uniqid()),
@@ -277,68 +363,128 @@ class BiliComments
         } else {
             switch ($_POST['action']) {
                 case 'install':
-                    $checkList = ['db_host', 'db_port', 'db_user', 'db_pass', 'db_name', 'redis_host', 'redis_port', 'admin_user', 'admin_pass', 'api_token'];
-                    foreach ($checkList as $key) {
-                        if (!isset($_POST[$key]) || !is_string($_POST[$key])) {
-                            die($this->getErrorTemplate('安装失败', '请填写所有必要的信息。'));
+                    if (!isset($_POST['db_type'], $_POST['cache_type']) || !is_string($_POST['db_type']) || !is_string($_POST['cache_type'])) {
+                        die($this->getErrorTemplate('安装失败', '数据库类型或缓存类型不正确'));
+                    }
+                    if ($_POST['db_type'] !== 'mysql' && $_POST['db_type'] !== 'sqlite') {
+                        die($this->getErrorTemplate('安装失败', '数据库类型不支持。'));
+                    }
+                    if ($_POST['cache_type'] !== 'redis' && $_POST['cache_type'] !== 'file') {
+                        die($this->getErrorTemplate('安装失败', '缓存类型不支持。'));
+                    }
+                    if ($_POST['db_type'] == 'mysql') {
+                        $checkList = ['db_host', 'db_port', 'db_user', 'db_pass', 'db_name', 'admin_user', 'admin_pass', 'api_token'];
+                        foreach ($checkList as $key) {
+                            if (!isset($_POST[$key]) || !is_string($_POST[$key])) {
+                                die($this->getErrorTemplate('安装失败', '请填写所有必要的信息。'));
+                            }
+                        }
+                    } elseif ($_POST['db_type'] == 'sqlite') {
+                        $checkList = ['db_file', 'admin_user', 'admin_pass', 'api_token'];
+                        foreach ($checkList as $key) {
+                            if (!isset($_POST[$key]) || !is_string($_POST[$key])) {
+                                die($this->getErrorTemplate('安装失败', '请填写所有必要的信息。'));
+                            }
+                        }
+                    }
+                    if ($_POST['cache_type'] == 'redis') {
+                        $checkList = ['redis_host', 'redis_port', 'redis_pass'];
+                        foreach ($checkList as $key) {
+                            if (!isset($_POST[$key]) || !is_string($_POST[$key])) {
+                                die($this->getErrorTemplate('安装失败', '请填写缓存配置。'));
+                            }
+                        }
+                    } elseif ($_POST['cache_type'] == 'file') {
+                        if (!isset($_POST['cache_path']) || !is_string($_POST['cache_path'])) {
+                            die($this->getErrorTemplate('安装失败', '请填写缓存路径。'));
                         }
                     }
                     // Check username
                     if (!preg_match('/^[a-zA-Z0-9_]{2,16}$/', $_POST['admin_user'])) {
                         die($this->getErrorTemplate('安装失败', '用户名不符合规范 (2-16 位字母、数字或下划线)。'));
                     }
-                    // Check prefix
-                    if (!preg_match('/^[a-zA-Z0-9_]{0,16}$/', $_POST['db_pfix'])) {
-                        die($this->getErrorTemplate('安装失败', '表前缀不符合规范 (0-16 位字母、数字或下划线)。'));
+                    // Start install
+                    if ($_POST['db_type'] == 'mysql') {
+                        // Check prefix
+                        if (!preg_match('/^[a-zA-Z0-9_]{0,16}$/', $_POST['db_pfix'])) {
+                            die($this->getErrorTemplate('安装失败', '表前缀不符合规范 (0-16 位字母、数字或下划线)。'));
+                        }
+                        // Check db name
+                        if (!preg_match('/^[a-zA-Z0-9_-]{1,64}$/', $_POST['db_name'])) {
+                            die($this->getErrorTemplate('安装失败', '数据库名不符合规范 (1-64 位字母、数字、下划线或短横线)。'));
+                        }
+                        $conn = new PDO(sprintf('mysql:host=%s;port=%d;dbname=%s', $_POST['db_host'], $_POST['db_port'], $_POST['db_name']), $_POST['db_user'], $_POST['db_pass']);
+                        $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+                        $conn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+                        $conn->exec('SET NAMES utf8mb4');
+                        // Check if database exists
+                        $stmt = $conn->prepare('SHOW DATABASES LIKE ?');
+                        $stmt->execute([$_POST['db_name']]);
+                        if ($stmt->rowCount() === 0) {
+                            die($this->getErrorTemplate('安装失败', '数据库不存在。'));
+                        }
+                        // Create tables
+                        $installSQL = file_get_contents(sprintf('%s/../data/install.sql', ROOT));
+                        $installSQL = str_replace('{{db_pfix}}', $_POST['db_pfix'] ?: '', $installSQL);
+                        $conn->exec($installSQL);
+                        // Insert admin user
+                        $salt = uniqid();
+                        $password = password_hash($_POST['admin_pass'] . $salt, PASSWORD_BCRYPT);
+                        $stmt = $conn->prepare(sprintf('INSERT INTO `%s` (`username`, `password`, `salt`, `time`) VALUES (?, ?, ?, ?)', $_POST['db_pfix'] . 'users'));
+                        $stmt->execute([$_POST['admin_user'], $password, $salt, time()]);
+                    } elseif ($_POST['db_type'] == 'sqlite') {
+                        // Check db file
+                        if (empty($_POST['db_file'])) {
+                            die($this->getErrorTemplate('安装失败', '请填写数据库文件路径。'));
+                        }
+                        $conn = new PDO('sqlite:' . $_POST['db_file']);
+                        $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+                        $conn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+                        $conn->exec('PRAGMA foreign_keys = ON');
+                        // Create tables
+                        $installSQL = file_get_contents(sprintf('%s/../data/install-sqlite.sql', ROOT));
+                        $installSQL = str_replace('{{db_pfix}}', '', $installSQL);
+                        $conn->exec($installSQL);
+                        // Insert admin user
+                        $salt = uniqid();
+                        $password = password_hash($_POST['admin_pass'] . $salt, PASSWORD_BCRYPT);
+                        $stmt = $conn->prepare('INSERT INTO `users` (`username`, `password`, `salt`, `time`) VALUES (?, ?, ?, ?)');
+                        $stmt->execute([$_POST['admin_user'], $password, $salt, time()]);
                     }
-                    // Check db name
-                    if (!preg_match('/^[a-zA-Z0-9_-]{1,64}$/', $_POST['db_name'])) {
-                        die($this->getErrorTemplate('安装失败', '数据库名不符合规范 (1-64 位字母、数字、下划线或短横线)。'));
-                    }
-                    $conn = new PDO(sprintf('mysql:host=%s;port=%d;dbname=%s', $_POST['db_host'], $_POST['db_port'], $_POST['db_name']), $_POST['db_user'], $_POST['db_pass']);
-                    $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-                    $conn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-                    $conn->exec('SET NAMES utf8mb4');
-                    // Check if database exists
-                    $stmt = $conn->prepare('SHOW DATABASES LIKE ?');
-                    $stmt->execute([$_POST['db_name']]);
-                    if ($stmt->rowCount() === 0) {
-                        die($this->getErrorTemplate('安装失败', '数据库不存在。'));
-                    }
-                    // Create tables
-                    $installSQL = file_get_contents(sprintf('%s/../data/install.sql', ROOT));
-                    $installSQL = str_replace('{{db_pfix}}', $_POST['db_pfix'] ?: '', $installSQL);
-                    $stmt = $conn->prepare($installSQL);
-                    $stmt->execute();
-                    // Insert admin user
-                    $salt = uniqid();
-                    $password = password_hash($_POST['admin_pass'] . $salt, PASSWORD_BCRYPT);
-                    $stmt = $conn->prepare(sprintf('INSERT INTO `%s` (`username`, `password`, `salt`, `time`) VALUES (?, ?, ?, ?)', $_POST['db_pfix'] . 'users'));
-                    $stmt->execute([$_POST['admin_user'], $password, $salt, time()]);
                     // Escape strings
+                    $_POST['db_type'] = $conn->quote($_POST['db_type']);
                     $_POST['db_host'] = $conn->quote($_POST['db_host']);
                     $_POST['db_user'] = $conn->quote($_POST['db_user']);
                     $_POST['db_pass'] = $conn->quote($_POST['db_pass']);
                     $_POST['db_name'] = $conn->quote($_POST['db_name']);
                     $_POST['db_pfix'] = $conn->quote($_POST['db_pfix']);
+                    $_POST['db_file'] = $conn->quote($_POST['db_file']);
+                    $_POST['cache_type'] = $conn->quote($_POST['cache_type']);
                     $_POST['redis_host'] = $conn->quote($_POST['redis_host']);
                     $_POST['redis_pass'] = $conn->quote($_POST['redis_pass']);
+                    $_POST['cache_path'] = $conn->quote($_POST['cache_path']);
                     $_POST['api_token'] = $conn->quote($_POST['api_token']);
                     // Create config file
                     file_put_contents(
                         sprintf('%s/../config.php', ROOT),
                         <<<EOF
 <?php
+// 数据库配置
+define('DB_TYPE', {$_POST['db_type']});
 define('DB_HOST', {$_POST['db_host']});
 define('DB_PORT', {$_POST['db_port']});
 define('DB_USER', {$_POST['db_user']});
 define('DB_PASS', {$_POST['db_pass']});
 define('DB_NAME', {$_POST['db_name']});
 define('DB_PFIX', {$_POST['db_pfix']});
+define('DB_FILE', {$_POST['db_file']});
 
+// 缓存配置
+define('CACHE_TYPE', {$_POST['cache_type']});
 define('REDIS_HOST', {$_POST['redis_host']});
 define('REDIS_PORT', {$_POST['redis_port']});
 define('REDIS_PASS', {$_POST['redis_pass']});
+define('CACHE_PATH', {$_POST['cache_path']});
 
 define('API_TOKEN', {$_POST['api_token']});
 define('CONFIG_ON_INVALID', false); // Cookie 失效后是否提示重新输入
@@ -411,8 +557,9 @@ if (isset($_GET['action']) && is_string($_GET['action'])) {
                 $buildCookie[] = sprintf('%s=%s', $key, $value);
             }
             $cookie = implode('; ', $buildCookie);
-            if (!$comments->validCookie($cookie)) {
-                exit(json_encode(['success' => false, 'message' => 'Cookie 验证失败 | ' . $cookie]));
+            $result = $comments->validCookie($cookie);
+            if (!$result['success']) {
+                exit(json_encode(['success' => false, 'message' => 'Cookie 验证失败 | ' . $cookie . ' | ' . $result['message']]));
             }
             $comments->setConvar('cookie', $cookie);
             exit(json_encode(['success' => true, 'message' => 'Cookie 已更新。']));
@@ -424,8 +571,11 @@ if (isset($_GET['action']) && is_string($_GET['action'])) {
             if (!preg_match('/^[a-zA-Z0-9_]{1,32}$/', $_POST['key'])) {
                 die($comments->getErrorTemplate('错误', '键名不符合规范。'));
             }
-            if ($_POST['key'] == 'cookie' && !$comments->validCookie($_POST['value'])) {
-                die($comments->getErrorTemplate('错误', 'Cookie 无效。'));
+            if ($_POST['key'] == 'cookie') {
+                $result = $comments->validCookie($_POST['value']);
+                if (!$result['success']) {
+                    die($comments->getErrorTemplate('错误', 'Cookie 验证失败 | ' . $_POST['value'] . ' | ' . $result['message']));
+                }
             }
             $comments->setConvar($_POST['key'], $_POST['value']);
             header('Location: /');
@@ -453,7 +603,7 @@ if (isset($_GET['action']) && is_string($_GET['action'])) {
     exit;
 }
 
-$last = $comments->redis->get('btl_last_check');
+$last = $comments->getCacheValue('btl_last_check');
 $interval = $comments->getConvar('interval', 30);
 $lastText = $last ? date('Y-m-d H:i:s', $last) : '从未';
 $health = 'success';
@@ -528,6 +678,19 @@ if ($last && time() - $last > $interval * 4) {
         .title .badge {
             margin-left: 10px;
         }
+
+        @media screen and (max-width: 1200px) {
+            .container {
+                max-width: 100% !important;
+                padding: 0px;
+                margin: 0;
+            }
+
+            .main-content {
+                margin-top: 0px !important;
+                margin-bottom: 0px !important;
+            }
+        }
     </style>
 </head>
 
@@ -535,7 +698,7 @@ if ($last && time() - $last > $interval * 4) {
     <div class="container">
         <div class="row justify-content-center">
             <div class="col-md-12">
-                <div class="card mt-5 mb-5">
+                <div class="card mt-5 mb-5 main-content">
                     <div class="card-header">
                         <h5 class="title">Bilibili 评论管理工具 <small>已登录 <?php echo htmlspecialchars($_SESSION['user']['username']); ?> (<a href="?logout">退出</a>) <span class="badge badge-<?php echo $health; ?>">上次检查</span> <?php echo $lastText; ?></small></h5>
                     </div>

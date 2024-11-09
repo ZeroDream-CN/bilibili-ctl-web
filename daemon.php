@@ -2,6 +2,7 @@
 define('ROOT', dirname(__FILE__));
 
 if (!file_exists(ROOT . '/config.php')) {
+    echo ROOT;
     die('还未进行安装，请先访问网页界面进行安装。');
 }
 
@@ -49,6 +50,7 @@ class Daemon
 {
     private $conn;
     private $interval;
+    private $cache = [];
     private $redis;
     private $bilibili;
 
@@ -97,11 +99,11 @@ class Daemon
                 if ($data['code'] === 0) {
                     $replies = $data['data'] ? $data['data']['list'] : [];
                     foreach ($replies as $reply) {
-                        $oid = $reply['oid'];
-                        $type = $reply['type'];
-                        $rpid = $reply['rpid'];
-                        $mid = $reply['mid'];
-                        $user = $reply['member']['uname'];
+                        $oid     = $reply['oid'];
+                        $type    = $reply['type'];
+                        $rpid    = $reply['rpid'];
+                        $mid     = $reply['mid'];
+                        $user    = $reply['member']['uname'];
                         $content = $reply['content']['message'];
                         if ($this->shouldCheckVideo($oid)) {
                             if (!$this->isWhiteListUser($user, $mid)) {
@@ -132,7 +134,7 @@ class Daemon
                     $this->configureCookie();
                 }
             }
-            $this->redis->set('btl_last_check', time());
+            $this->setCacheValue('btl_last_check', time());
             sleep($this->interval);
         }
     }
@@ -240,9 +242,9 @@ class Daemon
         return DB_PFIX . $name;
     }
 
-    private function getConvar(string $key, string $default = ""): string
+    public function getConvar(string $key, string $default = ""): string
     {
-        $result = $this->redis->get($key);
+        $result = $this->getCacheValue($key);
         if ($result) {
             return $result;
         }
@@ -250,29 +252,58 @@ class Daemon
         $stmt->execute([$key]);
         $result = $stmt->fetch();
         $result = $result ? $result['value'] : $default;
-        $this->redis->set("btl_convar_{$key}", $result);
-        $this->redis->expire("btl_convar_{$key}", 86400);
+        $this->setCacheValue($key, $result, 86400);
         return $result;
     }
 
-    private function setConvar(string $key, string $value): void
+    public function setConvar(string $key, string $value): void
     {
-        $stmt = $this->conn->prepare(sprintf('INSERT INTO `%s` (`key`, `value`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `value` = ?', $this->getTableName('convars')));
-        $stmt->execute([$key, $value, $value]);
-        $this->redis->set("btl_convar_{$key}", $value);
-        $this->redis->expire("btl_convar_{$key}", 86400);
-        $this->log('Set convar', $key, 'to', $value);
+        if (DB_TYPE == 'mysql') {
+            $stmt = $this->conn->prepare(sprintf('INSERT INTO `%s` (`key`, `value`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `value` = ?', $this->getTableName('convars')));
+            $stmt->execute([$key, $value, $value]);
+        } elseif (DB_TYPE == 'sqlite') {
+            $stmt = $this->conn->prepare(sprintf('INSERT OR REPLACE INTO `%s` (`key`, `value`) VALUES (?, ?)', $this->getTableName('convars')));
+            $stmt->execute([$key, $value]);
+        }
+        $this->setCacheValue($key, $value, 86400);
     }
 
-    private function refreshConvars(): void
+    public function refreshConvars(): void
     {
         $stmt = $this->conn->query(sprintf('SELECT `key`, `value` FROM `%s`', $this->getTableName('convars')));
         $convars = $stmt->fetchAll();
         foreach ($convars as $convar) {
-            $this->redis->set("btl_convar_{$convar['key']}", $convar['value']);
-            $this->redis->expire("btl_convar_{$convar['key']}", 86400);
+            $this->setCacheValue($convar['key'], $convar['value'], 86400);
         }
-        $this->log('Refreshed convars.');
+    }
+
+    public function getCacheValue(string $key, $default = null)
+    {
+        if (CACHE_TYPE == 'redis') {
+            $result = $this->redis->get($key);
+            if ($result) {
+                return $result;
+            }
+        } elseif (CACHE_TYPE == 'file') {
+            $result = $this->cache[$key] ?? null;
+            if ($result && (!$result['expire'] || $result['expire'] > time())) {
+                return $result['value'];
+            }
+        }
+        return $default;
+    }
+
+    public function setCacheValue(string $key, $value, $expire = false): void
+    {
+        if (CACHE_TYPE == 'redis') {
+            $this->redis->set($key, $value);
+            if ($expire) {
+                $this->redis->expire($key, $expire);
+            }
+        } elseif (CACHE_TYPE == 'file') {
+            $this->cache[$key] = ['value' => $value, 'expire' => $expire ? time() + $expire : false];
+            file_put_contents(CACHE_PATH, json_encode($this->cache));
+        }
     }
 
     /* Cookies */
@@ -296,11 +327,10 @@ class Daemon
         }
     }
 
-    private function validCookie(string $cookie, bool $update = false): bool
+    public function validCookie(string $cookie): array
     {
         $cookieArray = $this->parseCookie($cookie);
         if (!isset($cookieArray['bili_jct'])) {
-            $this->log('Cookie 缺少 bili_jct');
             return false;
         }
         $url = "https://api.bilibili.com/x/space/myinfo";
@@ -310,33 +340,26 @@ class Daemon
         ];
         $response = $this->httpRequest($url, 'GET', [], $headers, $cookie);
         $data = json_decode($response['data'], true);
-        $result = $data && $data['code'] === 0;
-        if ($update) {
-            $url = "https://member.bilibili.com/platform/home";
-            $response = $this->httpRequest($url, 'GET', [], $headers, $cookie);
-            $headers = $response['headers'];
-            if (isset($headers['set-cookie'])) {
-                $setCookie = $headers['set-cookie'];
-                $setCookie = explode(',', $setCookie);
-                $setCookie = array_reduce($setCookie, function ($carry, $item) {
-                    $exp = explode(';', $item);
-                    $carry[] = $exp[0];
-                    return $carry;
-                }, []);
-                $setCookie = implode('; ', $setCookie);
-                $this->log('更新 Cookie:', $setCookie);
-                $this->setConvar('cookie', $setCookie);
-            }
+        if ($data && $data['code'] === 0) {
+            return ['success' => true, 'message' => 'Cookie 有效。'];
+        } else {
+            return ['success' => false, 'message' => sprintf('HTTP Code: %d | %s', $response['status'], $response['error'])];
         }
-        return $result;
     }
 
-    private function parseCookie(string $cookie): array
+    public function parseCookie(string $cookie): array
     {
+        if (empty($cookie)) {
+            return [];
+        }
         $cookie = explode(';', $cookie);
         $cookie = array_reduce($cookie, function ($carry, $item) {
             $exp = explode('=', $item);
-            $carry[trim($exp[0])] = trim($exp[1]);
+            if (count($exp) == 2) {
+                $carry[trim($exp[0])] = trim($exp[1]);
+            } else {
+                $carry[trim($exp[0])] = '';
+            }
             return $carry;
         }, []);
         return $cookie;
@@ -344,15 +367,16 @@ class Daemon
 
     /* Connections */
 
-    private function httpRequest(string $url, string $method = 'GET', array $data = [], array $headers = [], string $cookie = ""): array
+    public function httpRequest(string $url, string $method = 'GET', array $data = [], array $headers = [], string $cookie = ""): array
     {
         $curl = curl_init();
         curl_setopt($curl, CURLOPT_URL, $url);
         curl_setopt($curl, CURLOPT_CUSTOMREQUEST, $method);
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, false);
         curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
         curl_setopt($curl, CURLOPT_COOKIE, $cookie);
-        curl_setopt($curl, CURLOPT_HEADER, true);
         if ($method === 'POST') {
             curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query($data));
         } elseif ($method === 'GET') {
@@ -371,26 +395,47 @@ class Daemon
             curl_setopt($curl, CURLOPT_URL, $url);
         }
         $response = curl_exec($curl);
-        $headerSize = curl_getinfo($curl, CURLINFO_HEADER_SIZE);
-        $responseHeaders = substr($response, 0, $headerSize);
-        $responseBody = substr($response, $headerSize);
+        $status = curl_getinfo($curl, CURLINFO_HTTP_CODE);
         $error = curl_error($curl);
-        // Process headers
-        // $this->log('Response headers:', $responseHeaders);
-        $responseHeaders = explode("\r\n", $responseHeaders);
-        $responseHeaders = array_reduce($responseHeaders, function ($carry, $item) {
-            $exp = explode(':', $item);
-            if (count($exp) > 1) {
-                $key = trim($exp[0]);
-                $value = trim($exp[1]);
-                // Format key
-                $key = strtolower($key);
-                $carry[$key] = $value;
-            }
-            return $carry;
-        }, []);
         curl_close($curl);
-        return ['data' => $responseBody, 'error' => $error, 'headers' => $responseHeaders];
+        return ['data' => $response, 'error' => $error, 'status' => $status];
+    }
+
+    private function connectDatabase(): void
+    {
+        if (DB_TYPE == 'mysql') {
+            $this->conn = new PDO(sprintf('mysql:host=%s;port=%d;dbname=%s', DB_HOST, DB_PORT, DB_NAME), DB_USER, DB_PASS);
+            $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            $this->conn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+            $this->conn->exec('SET NAMES utf8mb4');
+        } elseif (DB_TYPE == 'sqlite') {
+            $this->conn = new PDO('sqlite:' . DB_FILE);
+            $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            $this->conn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+            $this->conn->exec('PRAGMA foreign_keys = ON');
+        } else {
+            die('Database type not supported.');
+        }
+    }
+
+    private function connectRedis(): void
+    {
+        if (CACHE_TYPE == 'redis') {
+            $this->redis = new Redis();
+            $this->redis->connect(REDIS_HOST, REDIS_PORT);
+            if (REDIS_PASS && !empty(REDIS_PASS)) {
+                $this->redis->auth(REDIS_PASS);
+            }
+        } elseif (CACHE_TYPE == 'file') {
+            if (!file_exists(CACHE_PATH)) {
+                file_put_contents(CACHE_PATH, '[]');
+            }
+            $data = file_get_contents(CACHE_PATH);
+            $data = json_decode($data, true);
+            $this->cache = $data;
+        } else {
+            die('Cache type not supported.');
+        }
     }
 
     private function checkDatabase(): bool
@@ -405,34 +450,13 @@ class Daemon
         }
     }
 
-    private function connectDatabase(): void
-    {
-        $this->conn = new PDO(sprintf('mysql:host=%s;port=%d;dbname=%s', DB_HOST, DB_PORT, DB_NAME), DB_USER, DB_PASS);
-        $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        $this->conn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-        $this->conn->exec('SET NAMES utf8mb4');
-    }
-
-    private function connectRedis(): void
-    {
-        $this->redis = new Redis();
-        $this->redis->connect(REDIS_HOST, REDIS_PORT);
-        if (REDIS_PASS && !empty(REDIS_PASS)) {
-            $this->redis->auth(REDIS_PASS);
-        }
-    }
-
-    private function disconnectRedis(): void
-    {
-        $this->redis->close();
-    }
-
     private function checkRedis(): bool
     {
+        if (CACHE_TYPE == 'file') return true;
         if (!$this->redis) return false;
 
         try {
-            $this->redis->ping();
+            $this->redis?->ping();
             return true;
         } catch (RedisException $e) {
             return false;

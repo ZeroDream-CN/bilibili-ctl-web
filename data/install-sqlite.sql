@@ -1,0 +1,27 @@
+DROP TABLE IF EXISTS `convars`;
+CREATE TABLE `convars` (
+  `key` TEXT NOT NULL,
+  `value` TEXT NULL DEFAULT NULL,
+  PRIMARY KEY (`key`)
+);
+
+DROP TABLE IF EXISTS `deleted`;
+CREATE TABLE `deleted` (
+  `rpid` INTEGER NOT NULL,
+  `oid` INTEGER NOT NULL,
+  `username` TEXT NULL DEFAULT NULL,
+  `message` TEXT NULL DEFAULT NULL,
+  `type` TEXT NULL DEFAULT NULL,
+  `match` TEXT NULL DEFAULT NULL,
+  `time` INTEGER NOT NULL,
+  PRIMARY KEY (`rpid`)
+);
+
+DROP TABLE IF EXISTS `users`;
+CREATE TABLE `users` (
+  `id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  `username` TEXT NOT NULL,
+  `password` TEXT NOT NULL,
+  `salt` TEXT NOT NULL,
+  `time` INTEGER NOT NULL
+);

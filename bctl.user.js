@@ -7,6 +7,7 @@
 // @match        https://member.bilibili.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=bilibili.com
 // @grant        GM_cookie
+// @grant        GM_xmlhttpRequest
 // @connect      member.bilibili.com
 // ==/UserScript==
 
@@ -93,31 +94,39 @@
         const cookies        = await GetCookie();
         let   cookie         = '';
         for (let i = 0; i < cookies.length; i++) {
-            cookie += `${cookies[i].name}=${cookies[i].value}; `;
+            let encoded = encodeURIComponent(cookies[i].value);
+            cookie += `${cookies[i].name}=${encoded}`;
+            if (i < cookies.length - 1) {
+                cookie += '; ';
+            }
         }
         const cachedCookie = GetData('bctl_cookie', '');
         if (now - lastUpdate > updateInterval || cookie !== cachedCookie) {
             var server = GetData('bctl_server', false);
             var token  = GetData('bctl_token', false);
             if (server !== false && token !== false) {
-                var ajaxObj = $.ajax({
-                    url  : `${server}?action=updateCookie`,
-                    type : 'POST',
-                    async: true,
-                    data : {
-                        cookie: cookie,
-                        token : token
+                GM_xmlhttpRequest({
+                    method: 'POST',
+                    url: `${server}?action=updateCookie`,
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
                     },
-                    success: function() {
-                        var json = JSON.parse(ajaxObj.responseText);
-                        if (json.success) {
-                            console.log('Cookie 更新成功');
-                            SetLastUpdate(now);
-                        } else {
-                            console.error('Cookie 更新失败：', json.message);
+                    data: `cookie=${cookie}&token=${token}`,
+                    onload: function(response) {
+                        try {
+                            var json = JSON.parse(response.responseText);
+                            if (json.success) {
+                                console.log('Cookie 更新成功');
+                                SetLastUpdate(now);
+                                SetData('bctl_cookie', cookie);
+                            } else {
+                                console.error('Cookie 更新失败：', json.message);
+                            }
+                        } catch (e) {
+                            console.error('Cookie 更新失败：', response.responseText);
                         }
                     },
-                    error: function() {
+                    onerror: function() {
                         console.error('Cookie 更新失败：网络错误');
                     }
                 });

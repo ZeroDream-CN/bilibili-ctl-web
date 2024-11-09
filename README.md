@@ -19,8 +19,11 @@ Bilibili 评论管理工具，帮助你自动清理不想要的评论内容，�
 首先你需要准备以下环境：
 
 * PHP 7 或更高版本
-* Redis
-* MySQL
+* PDO MySQL 或 PDO SQLite 扩展
+* Swoole 扩展或 Swoole Cli 工具
+* PHP Redis 扩展（可选）
+* Redis（可选）
+* MySQL（可选）
 
 然后，将本项目克隆到你的网站根目录并设置权限：
 
@@ -68,7 +71,7 @@ server {
 ```
 </details>
 
-接着，访问你的网站，按照页面上的提示，输入数据库、Redis 以及管理员信息，然后进行安装。
+接着，访问你的网站，按照页面上的提示，输入数据库、缓存以及管理员信息，然后进行安装。
 
 安装完成后，使用 systemd 或 screen 等其他方式在后台运行 `php daemon.php` 即可。
 
