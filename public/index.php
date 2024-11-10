@@ -439,7 +439,7 @@ class BiliComments
                         if (empty($_POST['db_file'])) {
                             die($this->getErrorTemplate('安装失败', '请填写数据库文件路径。'));
                         }
-                        $conn = new PDO('sqlite:' . $_POST['db_file']);
+                        $conn = new PDO('sqlite:../' . $_POST['db_file']);
                         $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
                         $conn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
                         $conn->exec('PRAGMA foreign_keys = ON');
