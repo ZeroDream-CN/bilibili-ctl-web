@@ -458,7 +458,7 @@ class Daemon
         if (!$this->redis) return false;
 
         try {
-            $this->redis?->ping();
+            $this->redis->ping();
             return true;
         } catch (RedisException $e) {
             return false;
