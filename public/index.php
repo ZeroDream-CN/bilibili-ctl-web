@@ -814,7 +814,7 @@ if (isset($_GET['action']) && is_string($_GET['action'])) {
                                 <p>白名单用户名或 UID，每行一条</p>
                                 <textarea class="form-control convar" rows="5" data-convar-key="whitelist_users" data-convar-type="array" data-convar-default="[]" data-convar-multiplelines="1" style="margin-bottom: 16px;"></textarea>
                                 <p>视频 BV 号黑/白名单，每行一条</p>
-                                <textarea class="form-control convar" rows="5" data-convar-key="check_lists" data-convar-type="array" data-convar-default="[]" data-convar-multiplelines="1" style="margin-bottom: 16px;"></textarea>
+                                <textarea class="form-control convar" rows="5" data-convar-key="check_list" data-convar-type="array" data-convar-default="[]" data-convar-multiplelines="1" style="margin-bottom: 16px;"></textarea>
                                 <p>视频监控模式</p>
                                 <select class="form-control convar" data-convar-key="check_mode" data-convar-default="0" style="margin-bottom: 16px;">
                                     <option value="0">监控所有视频</option>
