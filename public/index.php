@@ -661,6 +661,16 @@ if (isset($_GET['action']) && is_string($_GET['action'])) {
                 'last'   => $lastText,
             ];
             exit(json_encode($info));
+        case 'testRegex':
+            $regex = json_decode($comments->getConvar('blacklist_regex', '[]'), true);
+            $test = isset($_POST['test']) ? $_POST['test'] : '';
+            $matched = [];
+            foreach ($regex as $item) {
+                if (preg_match($item, $test)) {
+                    $matched[] = $item;
+                }
+            }
+            exit(json_encode($matched));
         default:
             die($comments->getErrorTemplate('错误', '未知操作。'));
     }
@@ -796,7 +806,7 @@ if (isset($_GET['action']) && is_string($_GET['action'])) {
                                 <textarea class="form-control convar" rows="5" data-convar-key="blacklist_users" data-convar-type="array" data-convar-default="[]" data-convar-multiplelines="1" style="margin-bottom: 16px;"></textarea>
                                 <p>要屏蔽的关键词，每行一条</p>
                                 <textarea class="form-control convar" rows="5" data-convar-key="blacklist_words" data-convar-type="array" data-convar-default="[]" data-convar-multiplelines="1" style="margin-bottom: 16px;"></textarea>
-                                <p>正则表达式屏蔽评论，每行一条</p>
+                                <p>正则表达式屏蔽评论，每行一条 (<a href="javascript:void(0);" onclick="testRegex()">测试正则表达式</a>)</p>
                                 <textarea class="form-control convar" rows="5" data-convar-key="blacklist_regex" data-convar-type="array" data-convar-default="[]" data-convar-multiplelines="1" style="margin-bottom: 16px;"></textarea>
                             </div>
                             <div class="col-sm-6">
@@ -976,6 +986,45 @@ if (isset($_GET['action']) && is_string($_GET['action'])) {
                 $.get('?action=fetchBlacklist', function(data) {
                     $('textarea[data-convar-key="blacklist_users"]').val(data);
                     $('textarea[data-convar-key="blacklist_words"]').trigger('change');
+                });
+            }
+        });
+    }
+
+    function testRegex() {
+        Swal.fire({
+            title: '测试正则表达式',
+            input: 'text',
+            inputLabel: '输入测试文本',
+            inputPlaceholder: '测试文本',
+            showCancelButton: true,
+            confirmButtonText: '测试',
+            cancelButtonText: '取消',
+        }).then(function(result) {
+            if (result.isConfirmed) {
+                var test = result.value;
+                $.post('?action=testRegex', {
+                    test: test
+                }, function(data) {
+                    data = JSON.parse(data);
+                    if (data.length === 0) {
+                        Swal.fire({
+                            icon: 'info',
+                            title: '未匹配到任何正则表达式',
+                            showConfirmButton: true,
+                        });
+                    } else {
+                        var html = '';
+                        data.forEach(function(item) {
+                            html += '<code>' + item + '</code><br>';
+                        });
+                        Swal.fire({
+                            icon: 'success',
+                            title: '匹配到以下正则表达式',
+                            html: html,
+                            showConfirmButton: true,
+                        });
+                    }
                 });
             }
         });
