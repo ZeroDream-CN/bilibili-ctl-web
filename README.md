@@ -18,7 +18,7 @@ Bilibili 评论管理工具，帮助你自动清理不想要的评论内容，�
 ## 如何使用
 
 ### 一键懒人包（Windows）
-首先你需要下载 [Bilibili-Ctl-Windows](https://github.com/ZeroDream-CN/bilibili-ctl-web/releases/download/1.0.0/biblibili_ctl_windows.zip) 并解压到你的电脑上，然后运行 `start.cmd` 即可。
+首先你需要下载 [Bilibili-Ctl-Windows](https://github.com/ZeroDream-CN/bilibili-ctl-web/releases/download/1.0.1/biblibili_ctl_windows.zip) 并解压到你的电脑上，然后运行 `start.cmd` 即可。
 
 > 如果出现 VCRUNTIME140_1.dll 丢失的情况，请下载 [Visual C++ 运行时](https://aka.ms/vs/17/release/vc_redist.x64.exe) 并安装。
 
