@@ -16,6 +16,8 @@ require_once(ROOT . '/config.php');
 // time zone
 date_default_timezone_set('Asia/Shanghai');
 
+error_reporting(E_ALL & ~E_DEPRECATED & ~E_NOTICE);
+
 class Bilibili
 {
     protected $XOR_CODE  = 23442827791579;
@@ -132,6 +134,69 @@ class Daemon
                         }
                     }
                     $this->log('读取完成，已检测', count($replies), '条评论');
+                    // AI 检测
+                    $deepseekKey = $this->getConvar('deepseek_api_key', '');
+                    $deepseekPromot = $this->getConvar('deepseek_prompt', '以下是我发布的视频里收到的一些评论，格式为 ID|评论内容，每行一条，请找出那些骂人的评论，并将它们的 ID 用 JSON {"comments":[]} 的形式告诉我。');
+                    $deepseekInterval = $this->getConvar('deepseek_interval', 300);
+                    if (!empty($deepseekKey) && !empty($deepseekPromot)) {
+                        $lastAICheck = $this->getCacheValue('btl_last_ai_check', 0);
+                        if (time() - $lastAICheck > $deepseekInterval) {
+                            $this->log('正在进行 AI 检测，请稍候……');
+                            $promptPart = "";
+                            $promptArray = [];
+                            foreach ($replies as $reply) {
+                                $oid     = $reply['oid'];
+                                $type    = $reply['type'];
+                                $rpid    = $reply['rpid'];
+                                $mid     = $reply['mid'];
+                                $user    = $reply['member']['uname'];
+                                $content = str_replace("\n", "\\n", $reply['content']['message']);
+                                // 截断太长的评论
+                                if (mb_strlen($content) > 200) {
+                                    $content = mb_substr($content, 0, 200);
+                                }
+                                if ($this->shouldCheckVideo($oid)) {
+                                    if (!$this->isWhiteListUser($user, $mid)) {
+                                        if ($this->isBlackListUser($user, $mid)) {
+                                            continue;
+                                        } elseif ($this->isBlackListWord($content)) {
+                                            continue;
+                                        } elseif ($this->isBlackListRegex($content)) {
+                                            continue;
+                                        }
+                                    }
+                                    $promptPart .= sprintf("%d_%d|%s\n", $oid, $rpid, $content);
+                                    $promptArray[sprintf("%d_%d", $oid, $rpid)] = $reply;
+                                }
+                            }
+                            $prompt = sprintf("%s\n%s", $deepseekPromot, $promptPart);
+                            $result = $this->requestDeepSeek($prompt);
+                            if ($result['success']) {
+                                $jsonResult = json_decode($result['message'], true) ?: [];
+                                if (json_last_error() !== JSON_ERROR_NONE) {
+                                    $this->log('AI 检测失败，返回数据格式错误：', $result['message']);
+                                    continue;
+                                }
+                                if (!isset($jsonResult['comments'])) {
+                                    $this->log('AI 检测失败，返回数据格式错误：', $result['message']);
+                                    continue;
+                                }
+                                foreach($jsonResult["comments"] as $rep) {
+                                    $exp = explode('_', $rep);
+                                    if (count($exp) == 2) {
+                                        $oid = $exp[0];
+                                        $rpid = $exp[1];
+                                        $comment = $promptArray[$rep] ?? '';
+                                        $this->log('AI 认为该评论需要删除：', sprintf("%s: %s", $comment['member']['uname'], $comment['content']['message']));
+                                        $this->deleteComment($oid, 1, $rpid);
+                                        $this->logDeleteComment($oid, $rpid, 1, $comment['member']['uname'], $comment['content']['message'], 'ai');
+                                    }
+                                }
+                            }
+                            // 更新最后一次 AI 检测时间
+                            $this->setCacheValue('btl_last_ai_check', time());
+                        }
+                    }
                 } else {
                     $this->log('无法读取评论：', $data['message']);
                 }
@@ -236,6 +301,39 @@ class Daemon
         }
     }
 
+    private function requestDeepSeek(string $message): array
+    {
+        $token = $this->getConvar('deepseek_api_key', '');
+        if (empty($token)) {
+            return ['success' => false, 'message' => '请先配置 DeepSeek API Key'];
+        }
+        $url = "https://api.deepseek.com/chat/completions";
+        $data = [
+            "model" => "deepseek-chat",
+            "messages" => [
+                ["role" => "user", "content" => $message]
+            ],
+            "temperature" => 0.7,
+            "max_tokens" => 1000,
+            "response_format" => [
+                "type" => "json_object",
+            ],
+        ];
+        $headers = [
+            "Authorization: Bearer " . $token,
+            "Content-Type: application/json",
+            "Accept: application/json",
+        ];
+        $response = $this->httpRequest($url, 'POST', json_encode($data), $headers, $token);
+        $data = json_decode($response['data'], true);
+        if ($data && isset($data['choices'])) {
+            return ['success' => true, 'message' => $data['choices'][0]['message']['content']];
+        } else {
+            return ['success' => false, 'message' => $response['data']];
+        }
+    }
+
+
     /* Utils */
 
     private function log(): void
@@ -278,6 +376,12 @@ class Daemon
 
     public function refreshConvars(): void
     {
+        if (CACHE_TYPE == 'file') {
+            // 删除缓存文件
+            if (file_exists(CACHE_PATH)) {
+                unlink(CACHE_PATH);
+            }
+        }
         $stmt = $this->conn->query(sprintf('SELECT `key`, `value` FROM `%s`', $this->getTableName('convars')));
         $convars = $stmt->fetchAll();
         foreach ($convars as $convar) {
@@ -375,7 +479,7 @@ class Daemon
 
     /* Connections */
 
-    public function httpRequest(string $url, string $method = 'GET', array $data = [], array $headers = [], string $cookie = ""): array
+    public function httpRequest(string $url, string $method = 'GET', mixed $data = [], array $headers = [], string $cookie = ""): array
     {
         $curl = curl_init();
         curl_setopt($curl, CURLOPT_URL, $url);
@@ -386,7 +490,10 @@ class Daemon
         curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
         curl_setopt($curl, CURLOPT_COOKIE, $cookie);
         if ($method === 'POST') {
-            curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query($data));
+            if (is_array($data)) {
+                $data = http_build_query($data);
+            }
+            curl_setopt($curl, CURLOPT_POSTFIELDS, $data);
         } elseif ($method === 'GET') {
             $exp = explode('?', $url);
             if (count($exp) > 1) {

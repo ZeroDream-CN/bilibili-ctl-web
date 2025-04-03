@@ -279,6 +279,32 @@
     }
 
     async function CheckServer(server, token) {
+        const cookies = await GetCookie();
+        let cookie = '';
+        var findSessData = false;
+        for (let i = 0; i < cookies.length; i++) {
+            let encoded = encodeURIComponent(cookies[i].value);
+            cookie += `${cookies[i].name}=${encoded}`;
+            if (i < cookies.length - 1) {
+                cookie += '; ';
+            }
+            if (cookies[i].name === 'SESSDATA') {
+                findSessData = true;
+            }
+        }
+        if (!findSessData) {
+            console.error('未找到 SESSDATA Cookie');
+            if (useAlert) {
+                Swal.fire({
+                    icon: 'error',
+                    title: '检查失败',
+                    text: '未读取到 SESSDATA，请在 Tampermonkey 设置 > 安全 > 允许脚本访问 Cookie 中选择 “All”',
+                    showConfirmButton: true,
+                    confirmButtonText: '确定',
+                });
+            }
+            return;
+        }
         return new Promise((resolve, reject) => {
             GM_xmlhttpRequest({
                 method: 'POST',
@@ -286,7 +312,7 @@
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded'
                 },
-                data: `token=${token}&cookie=`,
+                data: `token=${token}&cookie=${cookie}`,
                 onload: function(response) {
                     try {
                         var json = JSON.parse(response.responseText);

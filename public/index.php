@@ -3,6 +3,8 @@ define('ROOT', str_replace("\\", "/", dirname(__FILE__)));
 // time zone
 date_default_timezone_set('Asia/Shanghai');
 
+error_reporting(E_ALL & ~E_DEPRECATED & ~E_NOTICE);
+
 class Bilibili
 {
     protected $XOR_CODE  = 23442827791579;
@@ -17,7 +19,7 @@ class Bilibili
         $bvIndex = count($bytes) - 1;
         $tmp = (($this->MAX_AID | $aid) ^ $this->XOR_CODE);
         while (($tmp <=> 0) > 0) {
-            $bytes[$bvIndex] = $this->data[intval(($tmp % $this->BASE))];
+            $bytes[$bvIndex] = $this->data[intval($tmp % $this->BASE)];
             $tmp = ($tmp / $this->BASE);
             $bvIndex -= 1;
         }
@@ -158,10 +160,6 @@ class BiliComments
 
     public function validCookie(string $cookie): array
     {
-        $cookieArray = $this->parseCookie($cookie);
-        if (!isset($cookieArray['bili_jct'])) {
-            return false;
-        }
         $url = "https://api.bilibili.com/x/space/myinfo";
         $headers = [
             "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
@@ -833,6 +831,19 @@ if (isset($_GET['action']) && is_string($_GET['action'])) {
                                 </div>
                             </div>
                             <div class="col-sm-12">
+                                <div class="sub-heading"><span>AI 控评配置</span></div>
+                            </div>
+                            <div class="col-sm-6">
+                                <p>DeepSeek API Key（<a href="https://platform.deepseek.com/api_keys" target="_blank">点击申请</a>）</p>
+                                <input type="text" class="form-control convar secure" data-convar-key="deepseek_api_key" placeholder="留空将会禁用该功能" data-convar-default="" style="margin-bottom: 16px;">
+                                <p>监控间隔时间（单位秒，太低会对你的钱包不利 ：）</p>
+                                <input type="number" class="form-control convar" data-convar-key="deepseek_interval" placeholder="300" data-convar-default="300" style="margin-bottom: 16px;" suggest-min="20" suggest-max="60" suggest-text="不建议低于 20 秒或高于 60 秒，过低的延迟可能会触发 B 站防火墙，过高的延迟可能会造成评论读取不及时。">
+                            </div>
+                            <div class="col-sm-6">
+                                <p>AI 提示词（<a href="https://github.com/ZeroDream-CN/bilibili-ctl-web/wiki/AI-%E6%8F%90%E7%A4%BA%E7%A4%BA%E4%BE%8B" target="_blank">查看示例</a>）</p>
+                                <textarea class="form-control convar" rows="5" data-convar-key="deepseek_prompt" data-convar-type="string" data-convar-default='以下是我发布的视频里收到的一些评论，格式为 ID|评论内容，每行一条，请找出那些骂人的评论，并将它们的 ID 用 JSON {"comments":[]} 的形式告诉我。' style="margin-bottom: 16px;"></textarea>
+                            </div>
+                            <div class="col-sm-12">
                                 <div class="sub-heading"><span>最近删除的评论</span></div>
                                 <div class="table-responsive">
                                     <table class="table table-striped table-hover">
@@ -869,7 +880,7 @@ if (isset($_GET['action']) && is_string($_GET['action'])) {
 <script async src="https://cdn.bootcdn.net/ajax/libs/sweetalert2/11.12.4/sweetalert2.all.min.js"></script>
 <script>
     $(document).ready(function() {
-        SetCopyText();
+        setCopyText();
         fetchInfo();
         loadConvars();
         fetchDeleted();
@@ -911,7 +922,7 @@ if (isset($_GET['action']) && is_string($_GET['action'])) {
         }, 10000);
     });
 
-    function SetCopyText() {
+    function setCopyText() {
         var date = new Date();
         var year = date.getFullYear();
         var host = window.location.host;
@@ -952,7 +963,8 @@ if (isset($_GET['action']) && is_string($_GET['action'])) {
             var matches = {
                 users: '用户',
                 words: '关键词',
-                regex: '正则表达式'
+                regex: '正则表达式',
+                ai: 'AI 监控'
             };
             var html = '';
             data = JSON.parse(data);
