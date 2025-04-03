@@ -1,5 +1,5 @@
 <?php
-define('ROOT', dirname(__FILE__));
+define('ROOT', str_replace("\\", "/", dirname(__FILE__)));
 // time zone
 date_default_timezone_set('Asia/Shanghai');
 
