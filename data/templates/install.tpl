@@ -63,12 +63,12 @@
                                 <div class="form-group">
                                     <label for="db_type">数据库类型</label>
                                     <select class="form-control" id="db_type" name="db_type" required>
-                                        <option value="mysql" selected>MySQL</option>
-                                        <option value="sqlite">SQLite</option>
+                                        <option value="sqlite" selected>SQLite</option>
+                                        <option value="mysql">MySQL</option>
                                     </select>
                                 </div>
                             </div>
-                            <div class="database-mysql">
+                            <div class="database-mysql" style="display: none;">
                                 <div class="col-sm-6">
                                     <div class="form-group">
                                         <label for="db_host">数据库地址</label>
@@ -104,7 +104,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="database-sqlite" style="display: none;">
+                            <div class="database-sqlite">
                                 <div class="col-sm-12">
                                     <div class="form-group">
                                         <label for="db_file">数据库文件</label>
@@ -120,12 +120,12 @@
                                 <div class="form-group">
                                     <label for="cache_type">缓存类型</label>
                                     <select class="form-control" id="cache_type" name="cache_type" required>
-                                        <option value="redis" selected>Redis</option>
-                                        <option value="file">文件</option>
+                                        <option value="file" selected>文件</option>
+                                        <option value="redis">Redis</option>
                                     </select>
                                 </div>
                             </div>
-                            <div class="cache-redis">
+                            <div class="cache-redis" style="display: none;">
                                 <div class="col-sm-4">
                                     <div class="form-group">
                                         <label for="redis_host">Redis 地址</label>
@@ -148,7 +148,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="cache-file" style="display: none;">
+                            <div class="cache-file">
                                 <div class="col-sm-12">
                                     <div class="form-group">
                                         <label for="cache_path">缓存目录</label>

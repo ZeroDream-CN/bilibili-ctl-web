@@ -1,5 +1,5 @@
 <?php
-define('ROOT', dirname(__FILE__));
+define('ROOT', str_replace("\\", "/", dirname(__FILE__)));
 // time zone
 date_default_timezone_set('Asia/Shanghai');
 
@@ -393,14 +393,14 @@ class BiliComments
                     if ($_POST['db_type'] == 'mysql') {
                         $checkList = ['db_host', 'db_port', 'db_user', 'db_pass', 'db_name', 'admin_user', 'admin_pass', 'api_token'];
                         foreach ($checkList as $key) {
-                            if (!isset($_POST[$key]) || !is_string($_POST[$key])) {
+                            if (!isset($_POST[$key]) || !is_string($_POST[$key]) || empty($_POST[$key])) {
                                 die($this->getErrorTemplate('安装失败', '请填写所有必要的信息。'));
                             }
                         }
                     } elseif ($_POST['db_type'] == 'sqlite') {
                         $checkList = ['db_file', 'admin_user', 'admin_pass', 'api_token'];
                         foreach ($checkList as $key) {
-                            if (!isset($_POST[$key]) || !is_string($_POST[$key])) {
+                            if (!isset($_POST[$key]) || !is_string($_POST[$key]) || empty($_POST[$key])) {
                                 die($this->getErrorTemplate('安装失败', '请填写所有必要的信息。'));
                             }
                         }
@@ -408,12 +408,12 @@ class BiliComments
                     if ($_POST['cache_type'] == 'redis') {
                         $checkList = ['redis_host', 'redis_port', 'redis_pass'];
                         foreach ($checkList as $key) {
-                            if (!isset($_POST[$key]) || !is_string($_POST[$key])) {
+                            if (!isset($_POST[$key]) || !is_string($_POST[$key]) || empty($_POST[$key])) {
                                 die($this->getErrorTemplate('安装失败', '请填写缓存配置。'));
                             }
                         }
                     } elseif ($_POST['cache_type'] == 'file') {
-                        if (!isset($_POST['cache_path']) || !is_string($_POST['cache_path'])) {
+                        if (!isset($_POST['cache_path']) || !is_string($_POST['cache_path']) || empty($_POST['cache_path'])) {
                             die($this->getErrorTemplate('安装失败', '请填写缓存路径。'));
                         }
                     }

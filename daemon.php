@@ -1,9 +1,15 @@
 <?php
-define('ROOT', dirname(__FILE__));
+define('ROOT', str_replace("\\", "/", dirname(__FILE__)));
 
 if (!file_exists(ROOT . '/config.php')) {
-    echo ROOT;
-    die('还未进行安装，请先访问网页界面进行安装。');
+    echo "Bilibili Ctl 还未进行安装，请先访问网页界面进行安装。\n";
+}
+
+if ($argc > 1 && $argv[1] == 'auto') {
+    echo "正在等待安装，安装完成后将自动开始守护进程。\n";
+    while (!file_exists(ROOT . '/config.php')) {
+        sleep(1);
+    }
 }
 
 require_once(ROOT . '/config.php');
