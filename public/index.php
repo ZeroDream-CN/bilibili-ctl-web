@@ -837,7 +837,7 @@ if (isset($_GET['action']) && is_string($_GET['action'])) {
                                 <p>DeepSeek API Key（<a href="https://platform.deepseek.com/api_keys" target="_blank">点击申请</a>）</p>
                                 <input type="text" class="form-control convar secure" data-convar-key="deepseek_api_key" placeholder="留空将会禁用该功能" data-convar-default="" style="margin-bottom: 16px;">
                                 <p>监控间隔时间（单位秒，太低会对你的钱包不利 ：）</p>
-                                <input type="number" class="form-control convar" data-convar-key="deepseek_interval" placeholder="300" data-convar-default="300" style="margin-bottom: 16px;" suggest-min="20" suggest-max="60" suggest-text="不建议低于 20 秒或高于 60 秒，过低的延迟可能会触发 B 站防火墙，过高的延迟可能会造成评论读取不及时。">
+                                <input type="number" class="form-control convar" data-convar-key="deepseek_interval" placeholder="300" data-convar-default="300" style="margin-bottom: 16px;" suggest-min="30" suggest-max="3600" suggest-text="不建议低于 120 秒，会导致你的 API 余额消耗的非常快，土豪另说。">
                             </div>
                             <div class="col-sm-6">
                                 <p>AI 提示词（<a href="https://github.com/ZeroDream-CN/bilibili-ctl-web/wiki/AI-%E6%8F%90%E7%A4%BA%E7%A4%BA%E4%BE%8B" target="_blank">查看示例</a>）</p>

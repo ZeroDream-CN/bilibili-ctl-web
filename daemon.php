@@ -5,7 +5,7 @@ if (!file_exists(ROOT . '/config.php')) {
     echo "Bilibili Ctl 还未进行安装，请先访问网页界面进行安装。\n";
 }
 
-if ($argc > 1 && $argv[1] == 'auto') {
+if ($argc > 1 && $argv[1] == 'auto' && !file_exists(ROOT . '/config.php')) {
     echo "正在等待安装，安装完成后将自动开始守护进程。\n";
     while (!file_exists(ROOT . '/config.php')) {
         sleep(1);
@@ -140,6 +140,7 @@ class Daemon
                     $deepseekInterval = $this->getConvar('deepseek_interval', 300);
                     if (!empty($deepseekKey) && !empty($deepseekPromot)) {
                         $lastAICheck = $this->getCacheValue('btl_last_ai_check', 0);
+                        $censoredComments = json_decode($this->getCacheValue('btl_censored_comments', '[]'), true) ?: [];
                         if (time() - $lastAICheck > $deepseekInterval) {
                             $this->log('正在进行 AI 检测，请稍候……');
                             $promptPart = "";
@@ -155,6 +156,10 @@ class Daemon
                                 if (mb_strlen($content) > 200) {
                                     $content = mb_substr($content, 0, 200);
                                 }
+                                // 跳过已审查的评论
+                                if (in_array($rpid, $censoredComments)) {
+                                    continue;
+                                }
                                 if ($this->shouldCheckVideo($oid)) {
                                     if (!$this->isWhiteListUser($user, $mid)) {
                                         if ($this->isBlackListUser($user, $mid)) {
@@ -167,6 +172,7 @@ class Daemon
                                     }
                                     $promptPart .= sprintf("%d_%d|%s\n", $oid, $rpid, $content);
                                     $promptArray[sprintf("%d_%d", $oid, $rpid)] = $reply;
+                                    $censoredComments[] = $rpid;
                                 }
                             }
                             $prompt = sprintf("%s\n%s", $deepseekPromot, $promptPart);
